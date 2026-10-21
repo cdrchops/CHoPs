@@ -23,14 +23,27 @@ function engineGame(options) {
     var isEngineRunning = false;
     var evaluation_el = document.getElementById("evaluation");
     var announced_game_over;
+    var currentBestMove = null;
+    var isAnalysisMode = false;
+    var analysisGame = null;
+
     // do not pick up pieces if the game is over
-    // only pick up pieces for White
+    // in normal mode: only pick up pieces for playerColor
+    // in analysis mode: pick up pieces for the active turn color in analysisGame
     var onDragStart = function(source, piece, position, orientation) {
+        if (isAnalysisMode && analysisGame) {
+            if (analysisGame.isGameOver()) return false;
+            var turnColor = analysisGame.turn();
+            var pieceColor = piece.charAt(0);
+            if (pieceColor !== turnColor) return false;
+            return true;
+        }
+
         var re = playerColor === 'white' ? /^b/ : /^w/;
-            if (game.isGameOver() ||
-                piece.search(re) !== -1) {
-                return false;
-            }
+        if (game.isGameOver() ||
+            piece.search(re) !== -1) {
+            return false;
+        }
     };
 
     setInterval(function ()
@@ -145,11 +158,20 @@ function engineGame(options) {
         return moves;
     }
 
+    function requestAnalysis(fen) {
+        if (!evaler) return;
+        uciCmd('stop', evaler);
+        var targetFen = fen || (isAnalysisMode && analysisGame ? analysisGame.fen() : game.fen());
+        uciCmd('position fen ' + targetFen, evaler);
+        uciCmd('go depth 12', evaler);
+    }
+
     function prepareMove() {
         stopClock();
         $('#pgn').text(game.pgn());
         board.position(game.fen());
         updateClock();
+        currentBestMove = null;
         if (typeof updateVisualizations === 'function') {
             updateVisualizations(engineGameController);
         }
@@ -158,7 +180,7 @@ function engineGame(options) {
             if(turn !== playerColor) {
                 uciCmd('position startpos moves' + get_moves());
                 uciCmd('position startpos moves' + get_moves(), evaler);
-                evaluation_el.textContent = "";
+                if (evaluation_el) evaluation_el.textContent = "";
                 uciCmd("eval", evaler);
 
                 if (time && time.wtime) {
@@ -167,6 +189,8 @@ function engineGame(options) {
                     uciCmd("go " + (time.depth ? "depth " + time.depth : ""));
                 }
                 isEngineRunning = true;
+            } else {
+                requestAnalysis(game.fen());
             }
             if(game.history().length >= 2 && !time.depth && !time.nodes) {
                 startClock();
@@ -194,13 +218,28 @@ function engineGame(options) {
             return;
         }
 
+        var pvMatch = line.match(/^info .*\bpv\s+([a-h][1-8])([a-h][1-8])([qrbn])?/);
+        if (pvMatch) {
+            currentBestMove = { from: pvMatch[1], to: pvMatch[2], promotion: pvMatch[3], raw: pvMatch[1] + pvMatch[2] };
+            if (typeof updateVisualizations === 'function') {
+                updateVisualizations(engineGameController);
+            }
+        }
+        var bestMatch = line.match(/^bestmove\s+([a-h][1-8])([a-h][1-8])([qrbn])?/);
+        if (bestMatch && bestMatch[1] !== '(none)') {
+            currentBestMove = { from: bestMatch[1], to: bestMatch[2], promotion: bestMatch[3], raw: bestMatch[1] + bestMatch[2] };
+            if (typeof updateVisualizations === 'function') {
+                updateVisualizations(engineGameController);
+            }
+        }
+
         if (evaluation_el) {
             if (evaluation_el.textContent) {
                 evaluation_el.textContent += "\n";
             }
             evaluation_el.textContent += line;
         }
-    }
+    };
 
     engine.onmessage = function(event) {
         var line;
@@ -260,14 +299,40 @@ function engineGame(options) {
     };
 
     var onDrop = function(source, target) {
+        var promoteEl = document.getElementById("promote");
+        var promoVal = promoteEl ? promoteEl.value : 'q';
+
+        if (isAnalysisMode && analysisGame) {
+            var move = null;
+            try {
+                move = analysisGame.move({
+                    from: source,
+                    to: target,
+                    promotion: promoVal
+                });
+            } catch (e) {
+                return 'snapback';
+            }
+
+            if (move === null) return 'snapback';
+
+            currentBestMove = null;
+            board.position(analysisGame.fen());
+            $('#pgn').text('[Analysis] ' + analysisGame.pgn());
+            if (typeof updateVisualizations === 'function') {
+                updateVisualizations(engineGameController);
+            }
+            requestAnalysis(analysisGame.fen());
+            return;
+        }
+
         // see if the move is legal
         var move = null;
         try {
-            var promoteEl = document.getElementById("promote");
             move = game.move({
                 from: source,
                 to: target,
-                promotion: promoteEl ? promoteEl.value : 'q'
+                promotion: promoVal
             });
         } catch (e) {
             return 'snapback';
@@ -277,7 +342,6 @@ function engineGame(options) {
         if (move === null) return 'snapback';
 
         prepareMove();
-
     };
 
     if (typeof $ !== 'undefined') {
@@ -291,7 +355,11 @@ function engineGame(options) {
     // update the board position after the piece snap
     // for castling, en passant, pawn promotion
     var onSnapEnd = function() {
-        board.position(game.fen());
+        if (isAnalysisMode && analysisGame) {
+            board.position(analysisGame.fen());
+        } else {
+            board.position(game.fen());
+        }
         if (typeof updateVisualizations === 'function') {
             updateVisualizations(engineGameController);
         }
@@ -310,13 +378,17 @@ function engineGame(options) {
 
     var engineGameController = {
         reset: function() {
+            if (isAnalysisMode) this.exitAnalysis();
             game.reset();
             uciCmd('setoption name Contempt value 0');
             //uciCmd('setoption name Skill Level value 20');
             this.setSkillLevel(0);
             uciCmd('setoption name King Safety value 0'); /// Agressive 100 (it's now symetric)
         },
-        loadPgn: function(pgn) { game.loadPgn(pgn); },
+        loadPgn: function(pgn) {
+            if (isAnalysisMode) this.exitAnalysis();
+            game.loadPgn(pgn);
+        },
         setPlayerColor: function(color) {
             playerColor = color;
             board.orientation(playerColor);
@@ -378,6 +450,7 @@ function engineGame(options) {
             displayStatus();
         },
         start: function() {
+            if (isAnalysisMode) this.exitAnalysis();
             uciCmd('ucinewgame');
             uciCmd('isready');
             engineStatus.engineReady = false;
@@ -387,6 +460,9 @@ function engineGame(options) {
             announced_game_over = false;
         },
         undo: function() {
+            if (isAnalysisMode) {
+                return this.undoAnalysis();
+            }
             if(isEngineRunning)
                 return false;
             game.undo();
@@ -397,16 +473,102 @@ function engineGame(options) {
             return true;
         },
         getFen: function() {
-            return game.fen();
+            return isAnalysisMode && analysisGame ? analysisGame.fen() : game.fen();
         },
         getGame: function() {
-            return game;
+            return isAnalysisMode && analysisGame ? analysisGame : game;
         },
         getBoard: function() {
             return board;
         },
         isAttacked: function(square, color) {
-            return game.isAttacked(square, color);
+            var active = isAnalysisMode && analysisGame ? analysisGame : game;
+            return active.isAttacked(square, color);
+        },
+        getBestMove: function() {
+            return currentBestMove;
+        },
+        setBestMove: function(from, to, promotion) {
+            currentBestMove = { from: from, to: to, promotion: promotion, raw: from + to };
+            if (typeof updateVisualizations === 'function') {
+                updateVisualizations(this);
+            }
+        },
+        isAnalysisMode: function() {
+            return isAnalysisMode;
+        },
+        startAnalysis: function() {
+            if (isAnalysisMode) return;
+            isAnalysisMode = true;
+            stopClock();
+            uciCmd('stop');
+            uciCmd('stop', evaler);
+            analysisGame = new Chess();
+            analysisGame.load(game.fen());
+            currentBestMove = null;
+            $('#analysis-alert').show();
+            $('#btn-try-moves').addClass('active btn-warning').removeClass('btn-info').text('🔬 Exit Try Moves');
+            $('#pgn').text('[Analysis] ' + (analysisGame.pgn() || 'Position ready - try any moves for either side'));
+            if (typeof updateVisualizations === 'function') {
+                updateVisualizations(this);
+            }
+            requestAnalysis(analysisGame.fen());
+        },
+        exitAnalysis: function() {
+            if (!isAnalysisMode) return;
+            isAnalysisMode = false;
+            analysisGame = null;
+            currentBestMove = null;
+            $('#analysis-alert').hide();
+            $('#btn-try-moves').removeClass('active btn-warning').addClass('btn-info').text('🔬 Try Moves');
+            board.position(game.fen());
+            $('#pgn').text(game.pgn());
+            if (typeof updateVisualizations === 'function') {
+                updateVisualizations(this);
+            }
+            requestAnalysis(game.fen());
+            var turn = game.turn() === 'w' ? 'white' : 'black';
+            if (!game.isGameOver()) {
+                if (turn !== playerColor) {
+                    prepareMove();
+                } else if (game.history().length >= 2 && !time.depth && !time.nodes) {
+                    startClock();
+                }
+            }
+        },
+        toggleAnalysis: function() {
+            if (isAnalysisMode) {
+                this.exitAnalysis();
+            } else {
+                this.startAnalysis();
+            }
+        },
+        undoAnalysis: function() {
+            if (!isAnalysisMode || !analysisGame) return false;
+            analysisGame.undo();
+            currentBestMove = null;
+            board.position(analysisGame.fen());
+            $('#pgn').text('[Analysis] ' + (analysisGame.pgn() || 'Starting analysis position'));
+            if (typeof updateVisualizations === 'function') {
+                updateVisualizations(this);
+            }
+            requestAnalysis(analysisGame.fen());
+            return true;
+        },
+        resetAnalysis: function() {
+            if (!isAnalysisMode) return;
+            analysisGame = new Chess();
+            analysisGame.load(game.fen());
+            currentBestMove = null;
+            board.position(analysisGame.fen());
+            $('#pgn').text('[Analysis] ' + (analysisGame.pgn() || 'Position reset to game state'));
+            if (typeof updateVisualizations === 'function') {
+                updateVisualizations(this);
+            }
+            requestAnalysis(analysisGame.fen());
+        },
+        requestAnalysis: function(fen) {
+            requestAnalysis(fen);
         }
     };
 

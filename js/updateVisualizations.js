@@ -1,5 +1,101 @@
+function clearArrows() {
+    if (typeof $ === 'undefined') return;
+    var $svg = $('#board-arrows-svg');
+    if ($svg.length > 0) {
+        $svg.find('polygon, path, line, g').remove();
+    }
+}
+
+function renderArrow(fromSq, toSq, color) {
+    if (typeof $ === 'undefined') return;
+    if (!fromSq || !toSq || fromSq === toSq) return;
+    color = color || 'rgba(108, 117, 125, 0.85)';
+
+    var $board = $('#board');
+    if ($board.length === 0) return;
+
+    var $container = $('#board .chessboard-63f37');
+    if ($container.length === 0) $container = $board;
+    if ($container.css('position') === 'static') {
+        $container.css('position', 'relative');
+    }
+
+    var $svg = $container.find('#board-arrows-svg');
+    if ($svg.length === 0) {
+        $svg = $('<svg id="board-arrows-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; overflow: visible;"><defs><filter id="arrow-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.4"/></filter></defs></svg>');
+        $container.append($svg);
+    }
+
+    var $from = $('#board .square-' + fromSq);
+    var $to = $('#board .square-' + toSq);
+    if ($from.length === 0 || $to.length === 0) return;
+
+    var containerOffset = $container.offset() || { top: 0, left: 0 };
+    var fromOffset = $from.offset() || { top: 0, left: 0 };
+    var toOffset = $to.offset() || { top: 0, left: 0 };
+
+    var sqW = $from.outerWidth() || 50;
+    var sqH = $from.outerHeight() || 50;
+
+    var x1 = (fromOffset.left - containerOffset.left) + sqW / 2;
+    var y1 = (fromOffset.top - containerOffset.top) + sqH / 2;
+    var x2 = (toOffset.left - containerOffset.left) + sqW / 2;
+    var y2 = (toOffset.top - containerOffset.top) + sqH / 2;
+
+    var dx = x2 - x1;
+    var dy = y2 - y1;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len === 0) return;
+
+    var ux = dx / len;
+    var uy = dy / len;
+    var px = -uy;
+    var py = ux;
+
+    var shaftWidth = Math.max(6, sqW * 0.22);
+    var headWidth = shaftWidth * 2.4;
+    var headLength = Math.max(14, sqW * 0.35);
+
+    var startX = x1 + ux * (sqW * 0.15);
+    var startY = y1 + uy * (sqH * 0.15);
+    var tipX = x2 - ux * (sqW * 0.1);
+    var tipY = y2 - uy * (sqH * 0.1);
+
+    var hbcX = tipX - ux * headLength;
+    var hbcY = tipY - uy * headLength;
+
+    var p1 = [startX - px * (shaftWidth / 2), startY - py * (shaftWidth / 2)];
+    var p2 = [hbcX - px * (shaftWidth / 2), hbcY - py * (shaftWidth / 2)];
+    var p3 = [hbcX - px * (headWidth / 2), hbcY - py * (headWidth / 2)];
+    var p4 = [tipX, tipY];
+    var p5 = [hbcX + px * (headWidth / 2), hbcY + py * (headWidth / 2)];
+    var p6 = [hbcX + px * (shaftWidth / 2), hbcY + py * (shaftWidth / 2)];
+    var p7 = [startX + px * (shaftWidth / 2), startY + py * (shaftWidth / 2)];
+
+    var pointsStr = [p1, p2, p3, p4, p5, p6, p7].map(function(pt) {
+        return pt[0].toFixed(1) + ',' + pt[1].toFixed(1);
+    }).join(' ');
+
+    if (typeof document !== 'undefined' && document.createElementNS) {
+        var polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        polygon.setAttribute('points', pointsStr);
+        polygon.setAttribute('fill', color);
+        polygon.setAttribute('stroke', 'rgba(255, 255, 255, 0.4)');
+        polygon.setAttribute('stroke-width', '1');
+        polygon.setAttribute('filter', 'url(#arrow-shadow)');
+        polygon.setAttribute('data-from', fromSq);
+        polygon.setAttribute('data-to', toSq);
+        $svg[0].appendChild(polygon);
+    } else {
+        $svg.append('<polygon points="' + pointsStr + '" fill="' + color + '" data-from="' + fromSq + '" data-to="' + toSq + '"></polygon>');
+    }
+}
+
 function updateVisualizations(game) {
     if (typeof $ === 'undefined') return;
+
+    // Clear existing arrows
+    clearArrows();
 
     // Remove existing highlights and inline multi-highlight styling
     var $squares = $('#board .square-55d63');
@@ -353,9 +449,25 @@ function updateVisualizations(game) {
             });
         }
     }
+
+    // 8) Stockfish lines toggle & arrow rendering
+    var toggleStockfishLines = hasToggles ? ($('#toggle-stockfish-lines').length ? $('#toggle-stockfish-lines').is(':checked') : true) : true;
+    if (toggleStockfishLines && game && typeof game.getBestMove === 'function') {
+        var bestMove = game.getBestMove();
+        if (bestMove && bestMove.from && bestMove.to) {
+            var turnColor = (tempChess && typeof tempChess.turn === 'function') ? tempChess.turn() : null;
+            if (!turnColor || shouldHighlightColor(turnColor)) {
+                renderArrow(bestMove.from, bestMove.to, 'rgba(108, 117, 125, 0.85)');
+            }
+        }
+    }
 }
 
 // Export for node testing if module is present
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { updateVisualizations: updateVisualizations };
+    module.exports = {
+        updateVisualizations: updateVisualizations,
+        renderArrow: renderArrow,
+        clearArrows: clearArrows
+    };
 }
