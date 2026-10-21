@@ -1,0 +1,282 @@
+<!doctype html>
+<html>
+<head>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/chessboard-0.3.0.min.css" />
+    <style>
+        /* Custom highlights styling for chessboard-js squares */
+        .highlight-green { box-shadow: inset 0 0 3px 3px rgba(40, 167, 69, 0.8) !important; background-color: rgba(40, 167, 69, 0.2) !important; }
+        .highlight-red { box-shadow: inset 0 0 3px 3px rgba(220, 53, 69, 0.8) !important; background-color: rgba(220, 53, 69, 0.2) !important; }
+        .highlight-orange { box-shadow: inset 0 0 3px 3px rgba(253, 126, 20, 0.8) !important; background-color: rgba(253, 126, 20, 0.2) !important; }
+        .highlight-yellow { box-shadow: inset 0 0 3px 3px rgba(255, 193, 7, 0.8) !important; background-color: rgba(255, 193, 7, 0.2) !important; }
+        .highlight-purple { box-shadow: inset 0 0 3px 3px rgba(111, 66, 193, 0.8) !important; background-color: rgba(111, 66, 193, 0.2) !important; }
+
+        /* Slide-out options drawer */
+        #options-drawer {
+            position: fixed;
+            top: 0;
+            right: -320px;
+            width: 300px;
+            height: 100%;
+            background: #ffffff;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.2);
+            transition: right 0.3s ease;
+            z-index: 1050;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        #options-drawer.open {
+            right: 0;
+        }
+        .drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.4);
+            display: none;
+            z-index: 1040;
+        }
+        .drawer-overlay.open {
+            display: block;
+        }
+    </style>
+    <script src="js/jquery-1.10.1.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+<!--    <script src="js/chess.min.js"></script>-->
+    <script src="js/chess.js"></script>
+    <script src="js/chessboard-0.3.0.min.js"></script>
+    <script src="data/eco.json"></script>
+    <script src="enginegame.js"></script>
+
+    <title>CHess OPeningS - CHOPS</title>
+</head>
+<body>
+<div class="row">
+    <div class="col-sm-7 col-md-6">
+        <span class="h3" id="time1">0:50:00</span>
+        <div id="board" style="width: 400px"></div>
+        <span class="h3" id="time2">0:50:00</span>
+        <hr>
+        <div id="engineStatus">...</div>
+        <h5>CHoPS</h5>
+        <div id="chops"></div>
+        <button id="toggle-drawer-btn" class="btn btn-secondary mt-2 mb-3">⚙️ Toggle Options</button>
+        <h5>TODO LIST</h5>
+        <pre>
+            1. make a 2 player game - so remove stockfish integration if game is 'vs'
+            2. add tactic generator - load tactics
+            3. endgame generator from the pgn downloaded from https://syzygy-tables.info/endgames and http://wtharvey.com/
+            4.
+        </pre>
+    </div>
+    <div class="col-sm-5 col-md-6">
+        <h3>Moves:</h3>
+        <div id="pgn"></div>
+        <hr>
+        <form class="form-horizontal">
+            <div class="form-group">
+                <label for="timeBase" class="control-label col-xs-4 col-sm-6 col-md-4">Base time (min)</label>
+                <div class="col-xs-4 col-sm-6 col-md-4">
+                    <input type="number" class="form-control" id="timeBase" value="50">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="timeInc" class="control-label col-xs-4 col-sm-6 col-md-4">Increment (sec)</label>
+                <div class="col-xs-4 col-sm-6 col-md-4">
+                    <input type="number" class="form-control" id="timeInc" value="2">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="skillLevel" class="control-label col-xs-4 col-sm-6 col-md-4">Skill Level (0-20)</label>
+                <div class="col-xs-4 col-sm-6 col-md-4">
+                    <input type="number" class="form-control" id="skillLevel" value="0">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="color" class="control-label col-xs-4 col-sm-6 col-md-4">I play</label>
+                <div class="col-xs-4 col-sm-6 col-md-4">
+                    <div class="btn-group" data-toggle="buttons">
+                        <label class="btn btn-primary active" id="color-white"><input type="radio" name="color">White</label>
+                        <label class="btn btn-primary" id="color-black"><input type="radio" name="color">Black</label>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="showScore" class="control-label col-xs-4 col-sm-6 col-md-4">Show score</label>
+                <div class="col-xs-4 col-sm-6 col-md-4">
+                    <input type="checkbox" class="form-control" id="showScore" checked>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="color" class="control-label col-xs-4 col-sm-6 col-md-4"></label>
+                <div class="col-xs-4 col-sm-6 col-md-4">
+                    <button type="button" class="btn btn-primary" onclick="loadNewGame('')">New Game</button>
+                    <button type="button" class="btn btn-primary" onclick="loadRandomOpening()">Random Opening</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="color" class="control-label col-xs-4 col-sm-6 col-md-4">Promote to</label>
+                <div class="col-xs-4 col-sm-6 col-md-4">
+                    <select id=promote>
+                        <option value=q selected>Queen</option>
+                        <option value=r>Rook</option>
+                        <option value=b>Bishop</option>
+                        <option value=n>Knight</option>
+                    </select>
+                </div>
+            </div>
+        </form>
+        <h5>Evaluation</h5>
+        <pre id=evaluation></pre>
+    </div>
+
+    <!-- Slide-out Options Drawer -->
+    <div class="drawer-overlay" id="drawer-overlay"></div>
+    <div id="options-drawer">
+        <h4>Gameplay Visualizations</h4>
+        <p class="text-muted small">Toggle board rules on or off:</p>
+        <hr>
+        <div class="custom-control custom-switch mb-3">
+            <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-protected" data-class="highlight-green">
+            <label class="custom-control-label" for="toggle-protected">1) Protected pieces are green</label>
+        </div>
+        <div class="custom-control custom-switch mb-3">
+            <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-attacked" data-class="highlight-red">
+            <label class="custom-control-label" for="toggle-attacked">2) Attacked pieces are red</label>
+        </div>
+        <div class="custom-control custom-switch mb-3">
+            <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-pinned" data-class="highlight-orange">
+            <label class="custom-control-label" for="toggle-pinned">3) Pinned pieces are orange</label>
+        </div>
+        <div class="custom-control custom-switch mb-3">
+            <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-skewered" data-class="highlight-yellow">
+            <label class="custom-control-label" for="toggle-skewered">4) Skewered pieces are yellow</label>
+        </div>
+        <div class="custom-control custom-switch mb-3">
+            <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-chains" data-class="highlight-purple">
+            <label class="custom-control-label" for="toggle-chains">5) Pawn chains are purple</label>
+        </div>
+        <hr>
+        <button id="close-drawer-btn" class="btn btn-block btn-outline-secondary">Close Options</button>
+    </div>
+    <script src="js/updateVisualizations.js"></script>
+    <script type="text/javascript" language="javascript">
+        const getObjectMethods = (obj) => {
+            let properties = new Set();
+            let currentObj = obj;
+            do {
+                Object.getOwnPropertyNames(currentObj).map(item => properties.add(item));
+            } while ((currentObj = Object.getPrototypeOf(currentObj)));
+
+            return [...properties.keys()].filter(item => typeof obj[item] === 'function');
+        };
+
+        // Example usage:
+        // const chess = new Chess();
+        // console.log(getObjectMethods(chess));
+
+        var wait_for_script;
+        var newGame = function (){};
+        var activeGameInstance = null;
+
+        /// We can load Stockfish.js via Web Workers or directly via a <script> tag.
+        /// Web Workers are better since they don't block the UI, but they are not always avaiable.
+        (function fix_workers()
+        {
+            var script_tag;
+            /// Does the environment support web workers?  If not, include stockfish.js directly.
+            ///NOTE: Since web workers don't work when a page is loaded from the local system, we have to fake it there too. (Take that security measures!)
+            if (!Worker || (location && location.protocol === "file:")) {
+                var script_tag  = document.createElement("script");
+                script_tag.type ="text/javascript";
+                script_tag.src  = "stockfish.asm.js";
+                // script_tag.onload = init;
+                document.getElementsByTagName("head")[0].appendChild(script_tag);
+                wait_for_script = true;
+                setTimeout(function ()
+                {
+                    console.warn("Loading this example from the file: protocol will load the slower asm.js engine.\nRun server.js and then load http://localhost:8080/ for the WASM engine.");
+                }, 3000);
+            }
+        }());
+
+        function getRandomOpening(max) {
+            return Math.floor(Math.random() * Math.floor(max));
+        }
+
+        function loadRandomOpening() {
+            var items = [];
+            var randomOpening = {};
+            var fen = "";
+
+            $.each( eco, function( key, val ) {
+                items.push( "<li id='" + key + "'>" + JSON.stringify(val) + "</li>" );
+            });
+
+            count = items.length;
+            randomOpening = eco[getRandomOpening(count)];
+            $('#chops').empty();
+            $("#chops").append(JSON.stringify(randomOpening));
+            fen = randomOpening.moves;
+            loadPGN(fen);
+
+            console.log("fen is " + fen);
+        }
+
+        function loadNewGame(pgn) {
+            console.log("pgn is from fen which is " + pgn);
+            var options = {};
+            if (pgn !== '' && pgn !== undefined) {
+                options = {pgn:pgn};
+            }
+            var game = engineGame(options);
+            activeGameInstance = game;
+
+            newGame = function newGame() {
+                var baseTime = parseFloat($('#timeBase').val()) * 60;
+                var inc = parseFloat($('#timeInc').val());
+                var skill = parseInt($('#skillLevel').val());
+                game.setTime(baseTime, inc);
+                game.setSkillLevel(skill);
+                game.setPlayerColor($('#color-white').hasClass('active') ? 'white' : 'black');
+                game.setDisplayScore($('#showScore').is(':checked'));
+                game.start();
+                console.log(getObjectMethods(game.getGame()));
+                updateVisualizations(game);
+            };
+
+            document.getElementById("skillLevel").addEventListener("change", function() {
+                game.setSkillLevel(parseInt(this.value, 10));
+            });
+
+            newGame();
+        }
+
+        function loadPGN(pgn) {
+            loadNewGame(pgn);
+        }
+
+        // Drawer and visualization handlers
+        $(document).ready(function() {
+            $('#toggle-drawer-btn, #close-drawer-btn, #drawer-overlay').click(function() {
+                $('#options-drawer').toggleClass('open');
+                $('#drawer-overlay').toggleClass('open');
+            });
+
+            $('.rule-toggle').change(function() {
+                updateVisualizations(activeGameInstance);
+            });
+        });
+
+
+        /// If we load Stockfish.js via a <script> tag, we need to wait until it loads.
+        if (!wait_for_script) {
+            // document.addEventListener("DOMContentLoaded", init);
+        }
+    </script>
+
+</body>
+</html>

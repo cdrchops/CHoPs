@@ -1,17 +1,16 @@
 function engineGame(options) {
     options = options || {};
 
-    console.log("options pgn " + options.pgn);
+    // console.log("options pgn " + options.pgn);
     var game = new Chess();
 
     if (options.pgn) {
-        game.load_pgn(options.pgn);
+        game.loadPgn(options.pgn);
     }
 
     // game.load("rnb1kb1r/ppp2p1p/3p3n/4N3/2BPPppq/8/PPP3PP/RNBQ1K1R");
-    // game.load_pgn('1. b4 Nh6');
-    // game.load_pgn(randomOpening.moves);
-    // console.log("game fen is " + game.fen());
+    // game.loadPgn('1. b4 Nh6');
+    // game.loadPgn(randomOpening.moves);
     var board;
     /// We can load Stockfish via Web Workers or via STOCKFISH() if loaded from a <script> tag.
     var engine = typeof STOCKFISH === "function" ? STOCKFISH() : new Worker(options.stockfishjs || 'stockfish.js');
@@ -27,8 +26,8 @@ function engineGame(options) {
     // do not pick up pieces if the game is over
     // only pick up pieces for White
     var onDragStart = function(source, piece, position, orientation) {
-        var re = playerColor == 'white' ? /^b/ : /^w/
-            if (game.game_over() ||
+        var re = playerColor === 'white' ? /^b/ : /^w/;
+            if (game.isGameOver() ||
                 piece.search(re) !== -1) {
                 return false;
             }
@@ -40,14 +39,14 @@ function engineGame(options) {
             return;
         }
 
-        if (game.game_over()) {
+        if (game.isGameOver()) {
             announced_game_over = true;
             alert("Game Over");
         }
     }, 1000);
 
     function uciCmd(cmd, which) {
-        console.log("UCI: " + cmd);
+        // console.log("UCI: " + cmd);
 
         (which || engine).postMessage(cmd);
     }
@@ -76,11 +75,11 @@ function engineGame(options) {
 
     function displayClock(color, t) {
         var isRunning = false;
-        if(time.startTime > 0 && color == time.clockColor) {
+        if(time.startTime > 0 && color === time.clockColor) {
             t = Math.max(0, t + time.startTime - Date.now());
             isRunning = true;
         }
-        var id = color == playerColor ? '#time2' : '#time1';
+        var id = color === playerColor ? '#time2' : '#time1';
         var sec = Math.ceil(t / 1000);
         var min = Math.floor(sec / 60);
         sec -= min * 60;
@@ -100,7 +99,7 @@ function engineGame(options) {
 
     function clockTick() {
         updateClock();
-        var t = (time.clockColor == 'white' ? time.wtime : time.btime) + time.startTime - Date.now();
+        var t = (time.clockColor === 'white' ? time.wtime : time.btime) + time.startTime - Date.now();
         var timeToNextSecond = (t % 1000) + 1;
         clockTimeoutID = setTimeout(clockTick, timeToNextSecond);
     }
@@ -113,7 +112,7 @@ function engineGame(options) {
         if(time.startTime > 0) {
             var elapsed = Date.now() - time.startTime;
             time.startTime = null;
-            if(time.clockColor == 'white') {
+            if(time.clockColor === 'white') {
                 time.wtime = Math.max(0, time.wtime - elapsed);
             } else {
                 time.btime = Math.max(0, time.btime - elapsed);
@@ -122,7 +121,7 @@ function engineGame(options) {
     }
 
     function startClock() {
-        if(game.turn() == 'w') {
+        if(game.turn() === 'w') {
             time.wtime += time.winc;
             time.clockColor = 'white';
         } else {
@@ -151,9 +150,9 @@ function engineGame(options) {
         $('#pgn').text(game.pgn());
         board.position(game.fen());
         updateClock();
-        var turn = game.turn() == 'w' ? 'white' : 'black';
-        if(!game.game_over()) {
-            if(turn != playerColor) {
+        var turn = game.turn() === 'w' ? 'white' : 'black';
+        if(!game.isGameOver()) {
+            if(turn !== playerColor) {
                 uciCmd('position startpos moves' + get_moves());
                 uciCmd('position startpos moves' + get_moves(), evaler);
                 evaluation_el.textContent = "";
@@ -181,7 +180,7 @@ function engineGame(options) {
             line = event;
         }
 
-        console.log("evaler: " + line);
+        // console.log("evaler: " + line);
 
         /// Ignore some output.
         if (line === "uciok" || line === "readyok" || line.substr(0, 11) === "option name") {
@@ -202,40 +201,44 @@ function engineGame(options) {
         } else {
             line = event;
         }
-        console.log("Reply: " + line)
-        if(line == 'uciok') {
+        // console.log("Reply: " + line)
+        if(line === 'uciok') {
             engineStatus.engineLoaded = true;
-        } else if(line == 'readyok') {
+        } else if(line === 'readyok') {
             engineStatus.engineReady = true;
         } else {
             var match = line.match(/^bestmove ([a-h][1-8])([a-h][1-8])([qrbn])?/);
             /// Did the AI move?
             if(match) {
                 isEngineRunning = false;
-                game.move({from: match[1], to: match[2], promotion: match[3]});
+                try {
+                    game.move({from: match[1], to: match[2], promotion: match[3]});
+                } catch (e) {
+                    return 'snapback';
+                }
                 prepareMove();
                 uciCmd("eval", evaler)
                 evaluation_el.textContent = "";
                 //uciCmd("eval");
             /// Is it sending feedback?
-            } else if(match = line.match(/^info .*\bdepth (\d+) .*\bnps (\d+)/)) {
+            } else if(match === line.match(/^info .*\bdepth (\d+) .*\bnps (\d+)/)) {
                 engineStatus.search = 'Depth: ' + match[1] + ' Nps: ' + match[2];
             }
 
             /// Is it sending feed back with a score?
-            if(match = line.match(/^info .*\bscore (\w+) (-?\d+)/)) {
-                var score = parseInt(match[2]) * (game.turn() == 'w' ? 1 : -1);
+            if(match === line.match(/^info .*\bscore (\w+) (-?\d+)/)) {
+                var score = parseInt(match[2]) * (game.turn() === 'w' ? 1 : -1);
                 /// Is it measuring in centipawns?
-                if(match[1] == 'cp') {
+                if(match[1] === 'cp') {
                     engineStatus.score = (score / 100.0).toFixed(2);
                 /// Did it find a mate?
-                } else if(match[1] == 'mate') {
+                } else if(match[1] === 'mate') {
                     engineStatus.score = 'Mate in ' + Math.abs(score);
                 }
 
                 /// Is the score bounded?
-                if(match = line.match(/\b(upper|lower)bound\b/)) {
-                    engineStatus.score = ((match[1] == 'upper') == (game.turn() == 'w') ? '<= ' : '>= ') + engineStatus.score
+                if(match === line.match(/\b(upper|lower)bound\b/)) {
+                    engineStatus.score = ((match[1] === 'upper') === (game.turn() === 'w') ? '<= ' : '>= ') + engineStatus.score;
                 }
             }
         }
@@ -281,7 +284,7 @@ function engineGame(options) {
             this.setSkillLevel(0);
             uciCmd('setoption name King Safety value 0'); /// Agressive 100 (it's now symetric)
         },
-        loadPgn: function(pgn) { game.load_pgn(pgn); },
+        loadPgn: function(pgn) { game.loadPgn(pgn); },
         setPlayerColor: function(color) {
             playerColor = color;
             board.orientation(playerColor);
@@ -360,6 +363,18 @@ function engineGame(options) {
             displayStatus();
             prepareMove();
             return true;
+        },
+        getFen: function() {
+            return game.fen();
+        },
+        getGame: function() {
+            return game;
+        },
+        getBoard: function() {
+            return board;
+        },
+        isAttacked: function(square, color) {
+            return game.isAttacked(square, color);
         }
     };
 }
