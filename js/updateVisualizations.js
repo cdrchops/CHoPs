@@ -3,7 +3,7 @@ function updateVisualizations(game) {
 
     // Remove existing highlights and inline multi-highlight styling
     var $squares = $('#board .square-55d63');
-    $squares.removeClass('highlight-green highlight-red highlight-orange highlight-yellow highlight-purple highlight-blue');
+    $squares.removeClass('highlight-green highlight-red highlight-orange highlight-yellow highlight-purple highlight-blue highlight-tan');
     $squares.css({
         'box-shadow': '',
         'background-color': '',
@@ -46,6 +46,11 @@ function updateVisualizations(game) {
             rgba: 'rgba(0, 123, 255, 0.85)',
             bg: 'rgba(0, 123, 255, 0.3)',
             className: 'highlight-blue'
+        },
+        'tan': {
+            rgba: 'rgba(210, 180, 140, 0.85)',
+            bg: 'rgba(210, 180, 140, 0.35)',
+            className: 'highlight-tan'
         }
     };
 
@@ -69,6 +74,30 @@ function updateVisualizations(game) {
     var toggleSkewered = hasToggles ? $('#toggle-skewered').is(':checked') : true;
     var toggleChains = hasToggles ? $('#toggle-chains').is(':checked') : true;
     var toggleCastling = hasToggles ? $('#toggle-castling').is(':checked') : true;
+    var toggleTan = hasToggles ? ($('#toggle-tan').length ? $('#toggle-tan').is(':checked') : ($('#toggle-defended').length ? $('#toggle-defended').is(':checked') : true)) : true;
+
+    // Check side filter (both, white, black)
+    var selectedSide = 'both';
+    var $activeSideBtn = $('#visualization-side-group .btn.active, #side-filter-group .btn.active');
+    if ($activeSideBtn.length > 0) {
+        var activeId = $activeSideBtn.attr('id') || '';
+        if (activeId.indexOf('white') !== -1) selectedSide = 'w';
+        else if (activeId.indexOf('black') !== -1) selectedSide = 'b';
+    }
+    var sideRadioVal = $('input[name="visualization-side"]:checked').val() || $('input[name="side-filter"]:checked').val();
+    if (sideRadioVal === 'w' || sideRadioVal === 'white') selectedSide = 'w';
+    else if (sideRadioVal === 'b' || sideRadioVal === 'black') selectedSide = 'b';
+    else if (sideRadioVal === 'both') selectedSide = 'both';
+
+    var sideSelectVal = $('#visualization-side').val() || $('#side-filter').val();
+    if (sideSelectVal === 'w' || sideSelectVal === 'white') selectedSide = 'w';
+    else if (sideSelectVal === 'b' || sideSelectVal === 'black') selectedSide = 'b';
+    else if (sideSelectVal === 'both') selectedSide = 'both';
+
+    function shouldHighlightColor(color) {
+        if (selectedSide === 'both') return true;
+        return selectedSide === color;
+    }
 
     // Track active highlight colors for each square
     var squareColors = {}; // squareName -> Array of color keys ['purple', 'green', ...]
@@ -82,13 +111,13 @@ function updateVisualizations(game) {
         }
     }
 
-    // 1) Protected pieces (Green) & 2) Attacked pieces (Red)
-    if (toggleProtected || toggleAttacked) {
+    // 1) Protected pieces (Green / Tan) & 2) Attacked pieces (Red)
+    if (toggleProtected || toggleAttacked || toggleTan) {
         for (var r = 0; r < 8; r++) {
             for (var c = 0; c < 8; c++) {
                 var sqName = getSquareName(r, c);
                 var piece = tempChess.get(sqName);
-                if (piece) {
+                if (piece && shouldHighlightColor(piece.color)) {
                     var oppColor = piece.color === 'w' ? 'b' : 'w';
 
                     if (toggleAttacked && tempChess.isAttacked(sqName, oppColor)) {
@@ -96,6 +125,9 @@ function updateVisualizations(game) {
                     }
                     if (toggleProtected && tempChess.isAttacked(sqName, piece.color)) {
                         addColorToSquare(sqName, 'green');
+                    }
+                    if (toggleTan && tempChess.isAttacked(sqName, piece.color)) {
+                        addColorToSquare(sqName, 'tan');
                     }
                 }
             }
@@ -149,18 +181,20 @@ function updateVisualizations(game) {
 
                     // Attacker targets p1 (opposing piece), behind p1 is p2 (same color as p1)
                     if (p1.piece.color !== att.piece.color && p2.piece.color === p1.piece.color) {
-                        var v1 = PIECE_VALUES[p1.piece.type];
-                        var v2 = PIECE_VALUES[p2.piece.type];
+                        if (shouldHighlightColor(p1.piece.color)) {
+                            var v1 = PIECE_VALUES[p1.piece.type];
+                            var v2 = PIECE_VALUES[p2.piece.type];
 
-                        // Pin: p2 is more valuable than p1, or p2 is King
-                        if (v2 > v1 || p2.piece.type === 'k') {
-                            if (togglePinned) {
-                                addColorToSquare(p1.sq, 'orange');
-                            }
-                        } else if (v1 > v2 || p1.piece.type === 'k') {
-                            // Skewer: p1 is more valuable than p2, or p1 is King (and attacked in check/ray)
-                            if (toggleSkewered) {
-                                addColorToSquare(p1.sq, 'yellow');
+                            // Pin: p2 is more valuable than p1, or p2 is King
+                            if (v2 > v1 || p2.piece.type === 'k') {
+                                if (togglePinned) {
+                                    addColorToSquare(p1.sq, 'orange');
+                                }
+                            } else if (v1 > v2 || p1.piece.type === 'k') {
+                                // Skewer: p1 is more valuable than p2, or p1 is King (and attacked in check/ray)
+                                if (toggleSkewered) {
+                                    addColorToSquare(p1.sq, 'yellow');
+                                }
                             }
                         }
                     }
@@ -172,6 +206,7 @@ function updateVisualizations(game) {
     // 5) Pawn Chains Logic (Purple) - including base pawn
     if (toggleChains) {
         ['w', 'b'].forEach(function(color) {
+            if (!shouldHighlightColor(color)) return;
             var pawns = [];
             for (var r = 0; r < 8; r++) {
                 for (var c = 0; c < 8; c++) {
@@ -205,6 +240,7 @@ function updateVisualizations(game) {
     // 6) Castling Availability (Blue)
     if (toggleCastling) {
         ['w', 'b'].forEach(function(color) {
+            if (!shouldHighlightColor(color)) return;
             var isWhite = (color === 'w');
             var oppColor = isWhite ? 'b' : 'w';
             var kingSquare = isWhite ? 'e1' : 'e8';

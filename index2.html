@@ -11,6 +11,7 @@
         .highlight-yellow { box-shadow: inset 0 0 3px 3px rgba(255, 193, 7, 0.8) !important; background-color: rgba(255, 193, 7, 0.2) !important; }
         .highlight-purple { box-shadow: inset 0 0 3px 3px rgba(111, 66, 193, 0.8) !important; background-color: rgba(111, 66, 193, 0.2) !important; }
         .highlight-blue { box-shadow: inset 0 0 3px 3px rgba(0, 123, 255, 0.8) !important; background-color: rgba(0, 123, 255, 0.2) !important; }
+        .highlight-tan { box-shadow: inset 0 0 3px 3px rgba(210, 180, 140, 0.8) !important; background-color: rgba(210, 180, 140, 0.2) !important; }
 
         .square-multi-highlight {
             position: relative;
@@ -145,6 +146,15 @@
         <p class="text-muted small">Toggle board rules on or off:</p>
         <hr>
         <form id="options-form">
+            <div class="form-group mb-3">
+                <label class="control-label"><strong>Show colors for:</strong></label>
+                <div class="btn-group btn-group-justified" data-toggle="buttons" id="visualization-side-group" style="width: 100%; display: flex;">
+                    <label class="btn btn-primary active" id="side-both" style="flex: 1;"><input type="radio" name="visualization-side" value="both" checked>Both</label>
+                    <label class="btn btn-primary" id="side-white" style="flex: 1;"><input type="radio" name="visualization-side" value="w">White</label>
+                    <label class="btn btn-primary" id="side-black" style="flex: 1;"><input type="radio" name="visualization-side" value="b">Black</label>
+                </div>
+            </div>
+            <hr>
             <div class="custom-control custom-switch mb-3">
                 <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-protected" data-class="highlight-green">
                 <label class="custom-control-label" for="toggle-protected">1) Protected pieces are green</label>
@@ -168,6 +178,10 @@
             <div class="custom-control custom-switch mb-3">
                 <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-castling" data-class="highlight-blue">
                 <label class="custom-control-label" for="toggle-castling">6) Castling availability is blue</label>
+            </div>
+            <div class="custom-control custom-switch mb-3">
+                <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-tan" data-class="highlight-tan">
+                <label class="custom-control-label" for="toggle-tan">7) Protected by another piece is tan</label>
             </div>
         </form>
         <hr>
@@ -277,8 +291,14 @@
                 $('#drawer-overlay').toggleClass('open');
             });
 
-            $('.rule-toggle').change(function() {
+            $('.rule-toggle, input[name="visualization-side"]').change(function() {
                 updateVisualizations(activeGameInstance);
+            });
+
+            $('#visualization-side-group .btn').click(function() {
+                setTimeout(function() {
+                    updateVisualizations(activeGameInstance);
+                }, 0);
             });
         });
 
