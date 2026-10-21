@@ -31,59 +31,64 @@ function updateVisualizations(game) {
 
     var toggleProtected = true;//$('#toggle-protected').is(':checked');
     // 1) Protected / Safe Pieces Logic (Green)
+    // 2) Attacked / Threatened Pieces Logic (Red)
     if (toggleProtected) {
         console.log("toggleProtected is true");
 
         for (var r = 0; r < 8; r++) {
             for (var c = 0; c < 8; c++) {
-                // var piece = boardGrid[r][c];
-                // if (piece) {
-                    var sqName = getSquareName(r, c);
-                    var pieceColor = "w"; // 'w' or 'b'
+                var sqName = getSquareName(r, c);
 
-                    if (tempChess.isAttacked(sqName, pieceColor)) {
-                        squaresToHighlight['highlight-green'].push('.square-' + sqName);
-                    }
-                // }
+                if (!tempChess.isAttacked(sqName, 'w')) {
+                    // console.log("Square " + sqName + " is protected for color " + pieceColor);
+                    squaresToHighlight['highlight-green'].push('.square-' + sqName);
+                } else if (tempChess.isAttacked(sqName, 'b')) {
+                    // console.log("Square " + sqName + " is protected for color " + pieceColor);
+                    squaresToHighlight['highlight-red'].push('.square-' + sqName);
+                }
             }
         }
     }
-    /*
-        // 5) Pawn Chains Logic (Purple)
-        var toggleChains = false;//$('#toggle-chains').is(':checked');
-        if (toggleChains) {
-            for (var r = 0; r < 8; r++) {
-                for (var c = 0; c < 8; c++) {
-                    var piece = boardGrid[r][c];
-                    if (piece && piece.type === 'p') {
-                        var color = piece.color;
-                        var supportRow = (color === 'w') ? r + 1 : r - 1;
 
-                        var hasChain = false;
-                        var colOffsets = [-1, 1];
-                        for (var i = 0; i < colOffsets.length; i++) {
-                            var supportCol = c + colOffsets[i];
-                            if (supportRow >= 0 && supportRow < 8 && supportCol >= 0 && supportCol < 8) {
-                                var supportingPiece = boardGrid[supportRow][supportCol];
-                                if (supportingPiece && supportingPiece.type === 'p' && supportingPiece.color === color) {
-                                    hasChain = true;
-                                    break;
-                                }
+    // 5) Pawn Chains Logic (Purple)
+    var toggleChains = true;//$('#toggle-chains').is(':checked');
+    if (toggleChains) {
+        for (var r = 0; r < 8; r++) {
+            for (var c = 0; c < 8; c++) {
+                var sqName = getSquareName(r, c);
+                var piece = tempChess.get(sqName);
+                if (piece !== undefined && piece.type === 'p' && piece.color === 'w') {
+                    var color = piece.color;
+                    var supportRow = (color === 'w') ? r + 1 : r - 1;
+
+                    var hasChain = false;
+                    var colOffsets = [-1, 1];
+                    for (var i = 0; i < colOffsets.length; i++) {
+                        var supportCol = c + colOffsets[i];
+                        if (supportRow >= 0 && supportRow < 8 && supportCol >= 0 && supportCol < 8) {
+                            var supportingPiece = tempChess.get(getSquareName(supportRow, supportCol));
+                            if (supportingPiece && supportingPiece.type === 'p' && supportingPiece.color === color) {
+                                hasChain = true;
+                                break;
                             }
                         }
+                    }
 
-                        if (hasChain) {
-                            var squareName = getSquareName(r, c);
-                            squaresToHighlight['highlight-purple'].push('.square-' + squareName);
-                        }
+                    if (hasChain) {
+                        var squareName = getSquareName(r, c);
+                        squaresToHighlight['highlight-purple'].push('.square-' + squareName);
                     }
                 }
             }
         }
+    }
 
-        for (var hlClass in squaresToHighlight) {
-            if (squaresToHighlight[hlClass].length > 0) {
-                $('#board ' + squaresToHighlight[hlClass].join(', ')).addClass(hlClass);
-            }
-        }*/
+
+
+    //looks through the board and updates the highlighted squares based on the squaresToHighlight object
+    for (var hlClass in squaresToHighlight) {
+        if (squaresToHighlight[hlClass].length > 0) {
+            $('#board ' + squaresToHighlight[hlClass].join(', ')).addClass(hlClass);
+        }
+    }
 }

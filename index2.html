@@ -44,7 +44,6 @@
     </style>
     <script src="js/jquery-1.10.1.min.js"></script>
     <script src="js/bootstrap.min.js"></script>
-<!--    <script src="js/chess.min.js"></script>-->
     <script src="js/chess.js"></script>
     <script src="js/chessboard-0.3.0.min.js"></script>
     <script src="data/eco.json"></script>
@@ -132,6 +131,7 @@
         <h5>Evaluation</h5>
         <pre id=evaluation></pre>
     </div>
+</div>
 
     <!-- Slide-out Options Drawer -->
     <div class="drawer-overlay" id="drawer-overlay"></div>
@@ -162,6 +162,7 @@
         <hr>
         <button id="close-drawer-btn" class="btn btn-block btn-outline-secondary">Close Options</button>
     </div>
+
     <script src="js/updateVisualizations.js"></script>
     <script type="text/javascript" language="javascript">
         const getObjectMethods = (obj) => {
@@ -192,7 +193,7 @@
             if (!Worker || (location && location.protocol === "file:")) {
                 var script_tag  = document.createElement("script");
                 script_tag.type ="text/javascript";
-                script_tag.src  = "stockfish.asm.js";
+                script_tag.src  = "js/stockfish.asm.js";
                 // script_tag.onload = init;
                 document.getElementsByTagName("head")[0].appendChild(script_tag);
                 wait_for_script = true;
@@ -244,7 +245,6 @@
                 game.setPlayerColor($('#color-white').hasClass('active') ? 'white' : 'black');
                 game.setDisplayScore($('#showScore').is(':checked'));
                 game.start();
-                console.log(getObjectMethods(game.getGame()));
                 updateVisualizations(game);
             };
 

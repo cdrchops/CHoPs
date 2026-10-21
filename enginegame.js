@@ -150,6 +150,9 @@ function engineGame(options) {
         $('#pgn').text(game.pgn());
         board.position(game.fen());
         updateClock();
+        if (typeof updateVisualizations === 'function') {
+            updateVisualizations(engineGameController);
+        }
         var turn = game.turn() === 'w' ? 'white' : 'black';
         if(!game.isGameOver()) {
             if(turn !== playerColor) {
@@ -182,15 +185,21 @@ function engineGame(options) {
 
         // console.log("evaler: " + line);
 
+        if (typeof line !== 'string') {
+            return;
+        }
+
         /// Ignore some output.
         if (line === "uciok" || line === "readyok" || line.substr(0, 11) === "option name") {
             return;
         }
 
-        if (evaluation_el.textContent) {
-            evaluation_el.textContent += "\n";
+        if (evaluation_el) {
+            if (evaluation_el.textContent) {
+                evaluation_el.textContent += "\n";
+            }
+            evaluation_el.textContent += line;
         }
-        evaluation_el.textContent += line;
     }
 
     engine.onmessage = function(event) {
@@ -202,6 +211,9 @@ function engineGame(options) {
             line = event;
         }
         // console.log("Reply: " + line)
+        if (typeof line !== 'string') {
+            return;
+        }
         if(line === 'uciok') {
             engineStatus.engineLoaded = true;
         } else if(line === 'readyok') {
@@ -218,15 +230,17 @@ function engineGame(options) {
                 }
                 prepareMove();
                 uciCmd("eval", evaler)
-                evaluation_el.textContent = "";
+                if (evaluation_el) {
+                    evaluation_el.textContent = "";
+                }
                 //uciCmd("eval");
             /// Is it sending feedback?
-            } else if(match === line.match(/^info .*\bdepth (\d+) .*\bnps (\d+)/)) {
+            } else if(match = line.match(/^info .*\bdepth (\d+) .*\bnps (\d+)/)) {
                 engineStatus.search = 'Depth: ' + match[1] + ' Nps: ' + match[2];
             }
 
             /// Is it sending feed back with a score?
-            if(match === line.match(/^info .*\bscore (\w+) (-?\d+)/)) {
+            if(match = line.match(/^info .*\bscore (\w+) (-?\d+)/)) {
                 var score = parseInt(match[2]) * (game.turn() === 'w' ? 1 : -1);
                 /// Is it measuring in centipawns?
                 if(match[1] === 'cp') {
@@ -237,7 +251,7 @@ function engineGame(options) {
                 }
 
                 /// Is the score bounded?
-                if(match === line.match(/\b(upper|lower)bound\b/)) {
+                if(match = line.match(/\b(upper|lower)bound\b/)) {
                     engineStatus.score = ((match[1] === 'upper') === (game.turn() === 'w') ? '<= ' : '>= ') + engineStatus.score;
                 }
             }
@@ -247,22 +261,40 @@ function engineGame(options) {
 
     var onDrop = function(source, target) {
         // see if the move is legal
-        var move = game.move({
-            from: source,
-            to: target,
-            promotion: document.getElementById("promote").value
-        });
+        var move = null;
+        try {
+            var promoteEl = document.getElementById("promote");
+            move = game.move({
+                from: source,
+                to: target,
+                promotion: promoteEl ? promoteEl.value : 'q'
+            });
+        } catch (e) {
+            return 'snapback';
+        }
 
         // illegal move
         if (move === null) return 'snapback';
 
         prepareMove();
+
     };
+
+    if (typeof $ !== 'undefined') {
+        $(document).off('keydown.enginegame').on('keydown.enginegame', function(e) {
+            if (e.key === 'Escape' || e.keyCode === 27) {
+                $(window).trigger($.Event('mouseup', { pageX: -1000, pageY: -1000 }));
+            }
+        });
+    }
 
     // update the board position after the piece snap
     // for castling, en passant, pawn promotion
     var onSnapEnd = function() {
         board.position(game.fen());
+        if (typeof updateVisualizations === 'function') {
+            updateVisualizations(engineGameController);
+        }
     };
 
     var cfg = {
@@ -276,7 +308,7 @@ function engineGame(options) {
 
     board = new ChessBoard('board', cfg);
 
-    return {
+    var engineGameController = {
         reset: function() {
             game.reset();
             uciCmd('setoption name Contempt value 0');
@@ -377,4 +409,6 @@ function engineGame(options) {
             return game.isAttacked(square, color);
         }
     };
+
+    return engineGameController;
 }

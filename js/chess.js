@@ -3531,5 +3531,45 @@ class Chess {
     }
 }
 
-export { BISHOP, BLACK, Chess, DEFAULT_POSITION, KING, KNIGHT, Move, NAG_TO_SYMBOL, PAWN, QUEEN, ROOK, SEVEN_TAG_ROSTER, SQUARES, SUFFIX_LIST, WHITE, nagToGlyph, validateFen, xoroshiro128 };
+if (typeof window !== 'undefined') {
+    window.Chess = Chess;
+    window.BISHOP = BISHOP;
+    window.BLACK = BLACK;
+    window.DEFAULT_POSITION = DEFAULT_POSITION;
+    window.KING = KING;
+    window.KNIGHT = KNIGHT;
+    window.Move = Move;
+    window.NAG_TO_SYMBOL = NAG_TO_SYMBOL;
+    window.PAWN = PAWN;
+    window.QUEEN = QUEEN;
+    window.ROOK = ROOK;
+    window.SEVEN_TAG_ROSTER = SEVEN_TAG_ROSTER;
+    window.SQUARES = SQUARES;
+    window.SUFFIX_LIST = SUFFIX_LIST;
+    window.WHITE = WHITE;
+    window.nagToGlyph = nagToGlyph;
+    window.validateFen = validateFen;
+    window.xoroshiro128 = xoroshiro128;
+}
+
+if (typeof exports !== 'undefined') {
+    exports.BISHOP = BISHOP;
+    exports.BLACK = BLACK;
+    exports.Chess = Chess;
+    exports.DEFAULT_POSITION = DEFAULT_POSITION;
+    exports.KING = KING;
+    exports.KNIGHT = KNIGHT;
+    exports.Move = Move;
+    exports.NAG_TO_SYMBOL = NAG_TO_SYMBOL;
+    exports.PAWN = PAWN;
+    exports.QUEEN = QUEEN;
+    exports.ROOK = ROOK;
+    exports.SEVEN_TAG_ROSTER = SEVEN_TAG_ROSTER;
+    exports.SQUARES = SQUARES;
+    exports.SUFFIX_LIST = SUFFIX_LIST;
+    exports.WHITE = WHITE;
+    exports.nagToGlyph = nagToGlyph;
+    exports.validateFen = validateFen;
+    exports.xoroshiro128 = xoroshiro128;
+}
 //# sourceMappingURL=chess.js.map
