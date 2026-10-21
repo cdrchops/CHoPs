@@ -10,6 +10,11 @@
         .highlight-orange { box-shadow: inset 0 0 3px 3px rgba(253, 126, 20, 0.8) !important; background-color: rgba(253, 126, 20, 0.2) !important; }
         .highlight-yellow { box-shadow: inset 0 0 3px 3px rgba(255, 193, 7, 0.8) !important; background-color: rgba(255, 193, 7, 0.2) !important; }
         .highlight-purple { box-shadow: inset 0 0 3px 3px rgba(111, 66, 193, 0.8) !important; background-color: rgba(111, 66, 193, 0.2) !important; }
+        .highlight-blue { box-shadow: inset 0 0 3px 3px rgba(0, 123, 255, 0.8) !important; background-color: rgba(0, 123, 255, 0.2) !important; }
+
+        .square-multi-highlight {
+            position: relative;
+        }
 
         /* Slide-out options drawer */
         #options-drawer {
@@ -139,26 +144,32 @@
         <h4>Gameplay Visualizations</h4>
         <p class="text-muted small">Toggle board rules on or off:</p>
         <hr>
-        <div class="custom-control custom-switch mb-3">
-            <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-protected" data-class="highlight-green">
-            <label class="custom-control-label" for="toggle-protected">1) Protected pieces are green</label>
-        </div>
-        <div class="custom-control custom-switch mb-3">
-            <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-attacked" data-class="highlight-red">
-            <label class="custom-control-label" for="toggle-attacked">2) Attacked pieces are red</label>
-        </div>
-        <div class="custom-control custom-switch mb-3">
-            <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-pinned" data-class="highlight-orange">
-            <label class="custom-control-label" for="toggle-pinned">3) Pinned pieces are orange</label>
-        </div>
-        <div class="custom-control custom-switch mb-3">
-            <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-skewered" data-class="highlight-yellow">
-            <label class="custom-control-label" for="toggle-skewered">4) Skewered pieces are yellow</label>
-        </div>
-        <div class="custom-control custom-switch mb-3">
-            <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-chains" data-class="highlight-purple">
-            <label class="custom-control-label" for="toggle-chains">5) Pawn chains are purple</label>
-        </div>
+        <form id="options-form">
+            <div class="custom-control custom-switch mb-3">
+                <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-protected" data-class="highlight-green">
+                <label class="custom-control-label" for="toggle-protected">1) Protected pieces are green</label>
+            </div>
+            <div class="custom-control custom-switch mb-3">
+                <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-attacked" data-class="highlight-red">
+                <label class="custom-control-label" for="toggle-attacked">2) Attacked pieces are red</label>
+            </div>
+            <div class="custom-control custom-switch mb-3">
+                <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-pinned" data-class="highlight-orange">
+                <label class="custom-control-label" for="toggle-pinned">3) Pinned pieces are orange</label>
+            </div>
+            <div class="custom-control custom-switch mb-3">
+                <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-skewered" data-class="highlight-yellow">
+                <label class="custom-control-label" for="toggle-skewered">4) Skewered pieces are yellow</label>
+            </div>
+            <div class="custom-control custom-switch mb-3">
+                <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-chains" data-class="highlight-purple">
+                <label class="custom-control-label" for="toggle-chains">5) Pawn chains are purple</label>
+            </div>
+            <div class="custom-control custom-switch mb-3">
+                <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-castling" data-class="highlight-blue">
+                <label class="custom-control-label" for="toggle-castling">6) Castling availability is blue</label>
+            </div>
+        </form>
         <hr>
         <button id="close-drawer-btn" class="btn btn-block btn-outline-secondary">Close Options</button>
     </div>
