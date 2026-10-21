@@ -1,0 +1,8 @@
+TITLE: Rook and Knight Checkmate
+DESCRIPTION:
+VARIATION: 1. Rh7# , 7k/R7/5N2/8/8/8/8/6K1  w q - 0 1
+
+TITLE: Knight and Rook Checkmate
+DESCRIPTION:
+VARIATION: 1. Rh7# , 7k/R7/5N2/8/8/8/8/6K1  w q - 0 1
+
