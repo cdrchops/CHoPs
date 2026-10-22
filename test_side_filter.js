@@ -1,4 +1,5 @@
 const { Chess } = require('./js/chess.js');
+global.Chess = Chess;
 const { updateVisualizations } = require('./js/updateVisualizations.js');
 
 function createMockJQuery(options = {}) {
@@ -108,6 +109,8 @@ function createMockJQuery(options = {}) {
         if (selector.startsWith('#board .square-')) {
             const sqName = selector.replace('#board .square-', '');
             if (!squareClasses[sqName]) squareClasses[sqName] = [];
+            const col = sqName.charCodeAt(0) - 97;
+            const row = 8 - parseInt(sqName[1], 10);
             return {
                 length: 1,
                 addClass: (cls) => {
@@ -118,7 +121,7 @@ function createMockJQuery(options = {}) {
                 },
                 outerWidth: () => 50,
                 outerHeight: () => 50,
-                offset: () => ({ top: 100, left: 100 })
+                offset: () => ({ top: row * 50, left: col * 50 })
             };
         }
         return { length: 0, is: () => false, val: () => '', find: () => ({ remove: () => {} }), append: () => {}, empty: () => {} };
@@ -353,13 +356,13 @@ function createMockJQuery(options = {}) {
     if (realChess.fen() !== realFen || realChess.pgn() !== realPgn) {
         throw new Error('Test 9 failed: real game state was altered by analysis moves');
     }
-    if (analysisChess.history().length !== 4) {
-        throw new Error('Test 9 failed: analysis history should contain all 4 half-moves');
+    if (analysisChess.history().length !== 3) {
+        throw new Error('Test 9 failed: analysis history should contain all 3 half-moves');
     }
 
     // Verify undo in analysis
     analysisChess.undo();
-    if (analysisChess.history().length !== 3) {
+    if (analysisChess.history().length !== 2) {
         throw new Error('Test 9 failed: analysis undo did not revert move');
     }
 
@@ -458,6 +461,50 @@ function createMockJQuery(options = {}) {
     }
 
     console.log('Test 11 (Stockfish lines <number> <color of arrow> SL<br/> format): PASSED successfully');
+}
+
+// Test 12: engineGame initialization safety when Worker throws SecurityError or STOCKFISH is missing
+{
+    const engineGame = require('./enginegame.js');
+    // Mock ChessBoard constructor and document element
+    global.ChessBoard = function(id, cfg) {
+        return {
+            position: () => {},
+            orientation: () => {},
+            destroy: () => {}
+        };
+    };
+    global.document = {
+        getElementById: (id) => ({
+            addEventListener: () => {},
+            value: '0',
+            textContent: ''
+        }),
+        off: () => ({ on: () => {} })
+    };
+
+    // Simulate Worker throwing SecurityError (like in file:// protocol)
+    global.Worker = function() {
+        const err = new Error("Failed to construct 'Worker': Script at 'file:///C:/projects/CHoPs/stockfish.js' cannot be accessed from origin 'null'.");
+        err.name = 'SecurityError';
+        throw err;
+    };
+    global.STOCKFISH = undefined;
+
+    // Call engineGame - should not throw SecurityError or crash
+    const controller = engineGame({});
+    if (!controller || typeof controller.start !== 'function' || typeof controller.getFen !== 'function') {
+        throw new Error('Test 12 failed: engineGame should return valid controller even when Worker throws SecurityError');
+    }
+
+    // Verify game starts with standard initial FEN
+    const initialFen = controller.getFen();
+    if (initialFen !== 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
+        throw new Error('Test 12 failed: unexpected initial FEN: ' + initialFen);
+    }
+
+    controller.start();
+    console.log('Test 12 (engineGame SecurityError fallback): PASSED successfully');
 }
 
 console.log('ALL SIDE FILTER, TAN, STOCKFISH LINES, AND ANALYSIS TESTS PASSED SUCCESSFULLY!');

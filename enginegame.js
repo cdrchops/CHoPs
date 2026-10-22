@@ -13,8 +13,31 @@ function engineGame(options) {
     // game.loadPgn(randomOpening.moves);
     var board;
     /// We can load Stockfish via Web Workers or via STOCKFISH() if loaded from a <script> tag.
-    var engine = typeof STOCKFISH === "function" ? STOCKFISH() : new Worker(options.stockfishjs || 'stockfish.js');
-    var evaler = typeof STOCKFISH === "function" ? STOCKFISH() : new Worker(options.stockfishjs || 'stockfish.js');
+    function createEngineWorker(scriptPath) {
+        if (typeof STOCKFISH === "function") {
+            try {
+                return STOCKFISH();
+            } catch (e) {
+                console.warn("STOCKFISH() initialization failed:", e);
+            }
+        }
+        var path = scriptPath || 'js/stockfish.js';
+        if (typeof Worker !== "undefined" && (typeof location === "undefined" || location.protocol !== "file:")) {
+            try {
+                return new Worker(path);
+            } catch (e) {
+                console.warn("Worker creation failed for " + path + ":", e);
+            }
+        }
+        return {
+            postMessage: function(cmd) {},
+            onmessage: null,
+            terminate: function() {}
+        };
+    }
+
+    var engine = createEngineWorker(options.stockfishjs);
+    var evaler = createEngineWorker(options.stockfishjs);
     var engineStatus = {};
     var displayScore = false;
     var time = { wtime: 300000, btime: 300000, winc: 2000, binc: 2000 };
@@ -61,8 +84,14 @@ function engineGame(options) {
 
     function uciCmd(cmd, which) {
         // console.log("UCI: " + cmd);
-
-        (which || engine).postMessage(cmd);
+        var target = which || engine;
+        if (target && typeof target.postMessage === 'function') {
+            try {
+                target.postMessage(cmd);
+            } catch (e) {
+                console.warn("uciCmd error:", e);
+            }
+        }
     }
     uciCmd('uci');
     uciCmd('uci', evaler);
@@ -663,4 +692,8 @@ function engineGame(options) {
     };
 
     return engineGameController;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = engineGame;
 }

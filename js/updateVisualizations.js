@@ -83,7 +83,7 @@ function renderStockfishLines(lines, fen) {
         var hex = ARROW_COLOR_HEX[colorName] || colorName;
         var coloredNumber = '<span style="color: ' + hex + '; font-weight: bold;">' + lineNum + '</span>';
 
-        html += coloredNumber + ' ' + moveText + '<br/>';
+        html += coloredNumber + ' ' + colorName + ' ' + moveText + '<br/>';
     }
 
     $container.html(html);
