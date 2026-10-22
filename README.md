@@ -1,5 +1,5 @@
 # CHoPs
-Chess Openings 
+(CH)ess (Op)ening(s) 
 
 Many years ago I had an idea for a chess trainer that would allow a learning player to visualize pieces better with regards to whether they were attacked, safe, protected by another piece, etc.
 
