@@ -1,3 +1,94 @@
+var ARROW_COLORS = ['grey', 'red', 'blue', 'yellow', 'orange', 'purple'];
+var ARROW_COLOR_HEX = {
+    'grey': '#6c757d',
+    'red': '#dc3545',
+    'blue': '#007bff',
+    'yellow': '#ffc107',
+    'orange': '#fd7e14',
+    'purple': '#6f42c1'
+};
+
+function formatPvMovesToSan(startFen, pvMoves) {
+    if (!pvMoves || !Array.isArray(pvMoves) || pvMoves.length === 0) return '';
+    if (typeof Chess === 'undefined') return pvMoves.join(' ');
+
+    try {
+        var tempEngine = new Chess();
+        if (startFen) {
+            tempEngine.load(startFen);
+        }
+        var formatted = [];
+        var maxMoves = Math.min(pvMoves.length, 12);
+        for (var i = 0; i < maxMoves; i++) {
+            var rawMove = pvMoves[i];
+            if (!rawMove || rawMove.length < 4) continue;
+            var from = rawMove.substring(0, 2);
+            var to = rawMove.substring(2, 4);
+            var promo = rawMove.length > 4 ? rawMove.substring(4, 5) : undefined;
+
+            var turn = tempEngine.turn();
+            var fenParts = tempEngine.fen().split(/\s+/);
+            var moveNum = fenParts[5] || '1';
+            var prefix = '';
+            if (turn === 'w') {
+                prefix = moveNum + '. ';
+            } else if (i === 0) {
+                prefix = moveNum + '... ';
+            }
+
+            var moveObj = tempEngine.move({ from: from, to: to, promotion: promo });
+            if (moveObj) {
+                formatted.push(prefix + moveObj.san);
+            } else {
+                formatted.push(prefix + rawMove);
+                break;
+            }
+        }
+        return formatted.join(' ');
+    } catch (e) {
+        return pvMoves.join(' ');
+    }
+}
+
+function renderStockfishLines(lines, fen) {
+    if (typeof $ === 'undefined') return;
+    var $container = $('#stockfish-lines-container');
+    if ($container.length === 0) return;
+
+    if (!lines || lines.length === 0) {
+        $container.empty();
+        return;
+    }
+
+    var html = '';
+    var maxLines = Math.min(lines.length, 5);
+
+    for (var i = 0; i < maxLines; i++) {
+        var lineObj = lines[i];
+        if (!lineObj) continue;
+
+        var lineNum = lineObj.pvIndex || (i + 1);
+        var colorIndex = (lineNum - 1) % ARROW_COLORS.length;
+        var colorName = ARROW_COLORS[colorIndex] || 'grey';
+
+        var moveText = '';
+        if (lineObj.pvMoves && lineObj.pvMoves.length > 0) {
+            moveText = formatPvMovesToSan(fen, lineObj.pvMoves);
+        } else if (lineObj.from && lineObj.to) {
+            moveText = lineObj.from + lineObj.to + (lineObj.promotion || '');
+        } else if (lineObj.raw) {
+            moveText = lineObj.raw;
+        }
+
+        var hex = ARROW_COLOR_HEX[colorName] || colorName;
+        var coloredNumber = '<span style="color: ' + hex + '; font-weight: bold;">' + lineNum + '</span>';
+
+        html += coloredNumber + ' ' + moveText + '<br/>';
+    }
+
+    $container.html(html);
+}
+
 function clearArrows() {
     if (typeof $ === 'undefined') return;
     var $svg = $('#board-arrows-svg');
@@ -6,10 +97,23 @@ function clearArrows() {
     }
 }
 
-function renderArrow(fromSq, toSq, color) {
+function renderArrow(fromSq, toSq, options) {
     if (typeof $ === 'undefined') return;
     if (!fromSq || !toSq || fromSq === toSq) return;
-    color = color || 'rgba(108, 117, 125, 0.85)';
+
+    var fill = 'rgba(108, 117, 125, 0.85)';
+    var stroke = 'rgba(255, 255, 255, 0.5)';
+    var strokeWidth = 1;
+    var opacity = 0.9;
+
+    if (typeof options === 'string') {
+        fill = options;
+    } else if (options && typeof options === 'object') {
+        if (options.fill !== undefined) fill = options.fill;
+        if (options.stroke !== undefined) stroke = options.stroke;
+        if (options.strokeWidth !== undefined) strokeWidth = options.strokeWidth;
+        if (options.opacity !== undefined) opacity = options.opacity;
+    }
 
     var $board = $('#board');
     if ($board.length === 0) return;
@@ -52,8 +156,8 @@ function renderArrow(fromSq, toSq, color) {
     var px = -uy;
     var py = ux;
 
-    var shaftWidth = Math.max(6, sqW * 0.22);
-    var headWidth = shaftWidth * 2.4;
+    var shaftWidth = Math.max(6, sqW * 0.20);
+    var headWidth = shaftWidth * 2.3;
     var headLength = Math.max(14, sqW * 0.35);
 
     var startX = x1 + ux * (sqW * 0.15);
@@ -79,15 +183,16 @@ function renderArrow(fromSq, toSq, color) {
     if (typeof document !== 'undefined' && document.createElementNS) {
         var polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
         polygon.setAttribute('points', pointsStr);
-        polygon.setAttribute('fill', color);
-        polygon.setAttribute('stroke', 'rgba(255, 255, 255, 0.4)');
-        polygon.setAttribute('stroke-width', '1');
+        polygon.setAttribute('fill', fill);
+        polygon.setAttribute('stroke', stroke);
+        polygon.setAttribute('stroke-width', strokeWidth);
+        polygon.setAttribute('opacity', opacity);
         polygon.setAttribute('filter', 'url(#arrow-shadow)');
         polygon.setAttribute('data-from', fromSq);
         polygon.setAttribute('data-to', toSq);
         $svg[0].appendChild(polygon);
     } else {
-        $svg.append('<polygon points="' + pointsStr + '" fill="' + color + '" data-from="' + fromSq + '" data-to="' + toSq + '"></polygon>');
+        $svg.append('<polygon points="' + pointsStr + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + strokeWidth + '" opacity="' + opacity + '" data-from="' + fromSq + '" data-to="' + toSq + '"></polygon>');
     }
 }
 
@@ -450,16 +555,52 @@ function updateVisualizations(game) {
         }
     }
 
-    // 8) Stockfish lines toggle & arrow rendering
+    // 8) Stockfish lines toggle & multi-line arrow rendering & line list display
     var toggleStockfishLines = hasToggles ? ($('#toggle-stockfish-lines').length ? $('#toggle-stockfish-lines').is(':checked') : true) : true;
-    if (toggleStockfishLines && game && typeof game.getBestMove === 'function') {
-        var bestMove = game.getBestMove();
-        if (bestMove && bestMove.from && bestMove.to) {
-            var turnColor = (tempChess && typeof tempChess.turn === 'function') ? tempChess.turn() : null;
-            if (!turnColor || shouldHighlightColor(turnColor)) {
-                renderArrow(bestMove.from, bestMove.to, 'rgba(108, 117, 125, 0.85)');
+    var fen = (tempChess && typeof tempChess.fen === 'function') ? tempChess.fen() : (game && typeof game.getFen === 'function' ? game.getFen() : null);
+
+    if (toggleStockfishLines && game) {
+        var turnColor = (tempChess && typeof tempChess.turn === 'function') ? tempChess.turn() : null;
+        if (!turnColor || shouldHighlightColor(turnColor)) {
+            var lines = [];
+            if (typeof game.getBestMoves === 'function') {
+                lines = game.getBestMoves() || [];
+            } else if (typeof game.getBestMove === 'function') {
+                var single = game.getBestMove();
+                if (single) lines = [single];
             }
+
+            // Arrow line color styles up to 5 lines:
+            // 1st option: grey arrow
+            // 2nd option: outlined in red
+            // 3rd option: outlined in blue
+            // 4th option: outlined in yellow
+            // 5th option: outlined in orange (or purple)
+            var lineStyles = [
+                { fill: 'rgba(108, 117, 125, 0.85)', stroke: 'rgba(255, 255, 255, 0.6)', strokeWidth: 1.5, opacity: 0.95 },   // Line 1: Grey
+                { fill: 'rgba(220, 53, 69, 0.25)',   stroke: '#dc3545',                   strokeWidth: 2.5, opacity: 0.90 },   // Line 2: Red outline
+                { fill: 'rgba(0, 123, 255, 0.25)',   stroke: '#007bff',                   strokeWidth: 2.5, opacity: 0.90 },   // Line 3: Blue outline
+                { fill: 'rgba(255, 193, 7, 0.25)',   stroke: '#ffc107',                   strokeWidth: 2.5, opacity: 0.90 },   // Line 4: Yellow outline
+                { fill: 'rgba(253, 126, 20, 0.25)',  stroke: '#fd7e14',                   strokeWidth: 2.5, opacity: 0.90 }    // Line 5: Orange outline
+            ];
+
+            // Render in reverse order (5 down to 1) so Line 1 appears on top
+            var maxLines = Math.min(lines.length, 5);
+            for (var lIdx = maxLines - 1; lIdx >= 0; lIdx--) {
+                var moveObj = lines[lIdx];
+                if (moveObj && moveObj.from && moveObj.to) {
+                    var style = lineStyles[lIdx] || lineStyles[0];
+                    renderArrow(moveObj.from, moveObj.to, style);
+                }
+            }
+
+            // Render Stockfish lines in format: <number> <color of arrow> SL<br/>
+            renderStockfishLines(lines, fen);
+        } else {
+            renderStockfishLines([], fen);
         }
+    } else {
+        renderStockfishLines([], fen);
     }
 }
 
@@ -468,6 +609,10 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         updateVisualizations: updateVisualizations,
         renderArrow: renderArrow,
-        clearArrows: clearArrows
+        clearArrows: clearArrows,
+        renderStockfishLines: renderStockfishLines,
+        formatPvMovesToSan: formatPvMovesToSan,
+        ARROW_COLORS: ARROW_COLORS,
+        ARROW_COLOR_HEX: ARROW_COLOR_HEX
     };
 }

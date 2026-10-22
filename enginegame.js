@@ -24,6 +24,7 @@ function engineGame(options) {
     var evaluation_el = document.getElementById("evaluation");
     var announced_game_over;
     var currentBestMove = null;
+    var currentBestMovesMap = {};
     var isAnalysisMode = false;
     var analysisGame = null;
 
@@ -64,6 +65,8 @@ function engineGame(options) {
         (which || engine).postMessage(cmd);
     }
     uciCmd('uci');
+    uciCmd('uci', evaler);
+    uciCmd('setoption name MultiPV value 5', evaler);
 
     ///TODO: Eval starting posistions. I suppose the starting positions could be different in different chess varients.
 
@@ -161,6 +164,8 @@ function engineGame(options) {
     function requestAnalysis(fen) {
         if (!evaler) return;
         uciCmd('stop', evaler);
+        currentBestMovesMap = {};
+        currentBestMove = null;
         var targetFen = fen || (isAnalysisMode && analysisGame ? analysisGame.fen() : game.fen());
         uciCmd('position fen ' + targetFen, evaler);
         uciCmd('go depth 12', evaler);
@@ -172,6 +177,7 @@ function engineGame(options) {
         board.position(game.fen());
         updateClock();
         currentBestMove = null;
+        currentBestMovesMap = {};
         if (typeof updateVisualizations === 'function') {
             updateVisualizations(engineGameController);
         }
@@ -218,16 +224,59 @@ function engineGame(options) {
             return;
         }
 
-        var pvMatch = line.match(/^info .*\bpv\s+([a-h][1-8])([a-h][1-8])([qrbn])?/);
+        var pvMatch = line.match(/^info .*\bpv\s+(.*)$/);
         if (pvMatch) {
-            currentBestMove = { from: pvMatch[1], to: pvMatch[2], promotion: pvMatch[3], raw: pvMatch[1] + pvMatch[2] };
+            var multipvMatch = line.match(/\bmultipv\s+(\d+)/);
+            var multipvNum = multipvMatch ? parseInt(multipvMatch[1], 10) : 1;
+            var pvString = pvMatch[1].trim();
+            var pvMoves = pvString.split(/\s+/);
+            var firstMove = pvMoves[0] || '';
+            var from = firstMove.substring(0, 2);
+            var to = firstMove.substring(2, 4);
+            var promo = firstMove.length > 4 ? firstMove.substring(4, 5) : undefined;
+
+            var depthMatch = line.match(/\bdepth\s+(\d+)/);
+            var scoreMatch = line.match(/\bscore\s+(cp|mate)\s+(-?\d+)/);
+            var scoreFormatted = '';
+            var activeChess = (isAnalysisMode && analysisGame) ? analysisGame : game;
+            var turnMultiplier = (activeChess.turn() === 'w') ? 1 : -1;
+            if (scoreMatch) {
+                var sType = scoreMatch[1];
+                var sVal = parseInt(scoreMatch[2], 10);
+                if (sType === 'cp') {
+                    var cpVal = (sVal / 100.0) * turnMultiplier;
+                    scoreFormatted = (cpVal > 0 ? '+' : '') + cpVal.toFixed(2);
+                } else if (sType === 'mate') {
+                    scoreFormatted = '#' + (sVal * turnMultiplier);
+                }
+            }
+
+            var moveData = {
+                from: from,
+                to: to,
+                promotion: promo,
+                raw: from + to,
+                pvIndex: multipvNum,
+                pvMoves: pvMoves,
+                depth: depthMatch ? parseInt(depthMatch[1], 10) : null,
+                score: scoreFormatted
+            };
+            currentBestMovesMap[multipvNum] = moveData;
+            if (multipvNum === 1) {
+                currentBestMove = moveData;
+            }
             if (typeof updateVisualizations === 'function') {
                 updateVisualizations(engineGameController);
             }
         }
         var bestMatch = line.match(/^bestmove\s+([a-h][1-8])([a-h][1-8])([qrbn])?/);
         if (bestMatch && bestMatch[1] !== '(none)') {
-            currentBestMove = { from: bestMatch[1], to: bestMatch[2], promotion: bestMatch[3], raw: bestMatch[1] + bestMatch[2] };
+            var bestMoveData = currentBestMovesMap[1] || { from: bestMatch[1], to: bestMatch[2], promotion: bestMatch[3], raw: bestMatch[1] + bestMatch[2], pvIndex: 1, pvMoves: [bestMatch[1] + bestMatch[2] + (bestMatch[3] || '')] };
+            bestMoveData.from = bestMatch[1];
+            bestMoveData.to = bestMatch[2];
+            bestMoveData.promotion = bestMatch[3];
+            currentBestMove = bestMoveData;
+            currentBestMovesMap[1] = bestMoveData;
             if (typeof updateVisualizations === 'function') {
                 updateVisualizations(engineGameController);
             }
@@ -317,6 +366,7 @@ function engineGame(options) {
             if (move === null) return 'snapback';
 
             currentBestMove = null;
+            currentBestMovesMap = {};
             board.position(analysisGame.fen());
             $('#pgn').text('[Analysis] ' + analysisGame.pgn());
             if (typeof updateVisualizations === 'function') {
@@ -488,8 +538,44 @@ function engineGame(options) {
         getBestMove: function() {
             return currentBestMove;
         },
+        getBestMoves: function() {
+            var moves = [];
+            for (var i = 1; i <= 5; i++) {
+                if (currentBestMovesMap[i]) {
+                    moves.push(currentBestMovesMap[i]);
+                }
+            }
+            if (moves.length === 0 && currentBestMove) {
+                moves.push(currentBestMove);
+            }
+            return moves;
+        },
         setBestMove: function(from, to, promotion) {
-            currentBestMove = { from: from, to: to, promotion: promotion, raw: from + to };
+            var moveData = { from: from, to: to, promotion: promotion, raw: from + to, pvIndex: 1 };
+            currentBestMove = moveData;
+            currentBestMovesMap = { 1: moveData };
+            if (typeof updateVisualizations === 'function') {
+                updateVisualizations(this);
+            }
+        },
+        setBestMoves: function(movesArray) {
+            currentBestMovesMap = {};
+            currentBestMove = null;
+            if (Array.isArray(movesArray)) {
+                for (var i = 0; i < movesArray.length; i++) {
+                    var m = movesArray[i];
+                    var idx = i + 1;
+                    var moveData = {
+                        from: m.from,
+                        to: m.to,
+                        promotion: m.promotion,
+                        raw: (m.from && m.to) ? (m.from + m.to) : '',
+                        pvIndex: idx
+                    };
+                    currentBestMovesMap[idx] = moveData;
+                    if (idx === 1) currentBestMove = moveData;
+                }
+            }
             if (typeof updateVisualizations === 'function') {
                 updateVisualizations(this);
             }
@@ -506,6 +592,7 @@ function engineGame(options) {
             analysisGame = new Chess();
             analysisGame.load(game.fen());
             currentBestMove = null;
+            currentBestMovesMap = {};
             $('#analysis-alert').show();
             $('#btn-try-moves').addClass('active btn-warning').removeClass('btn-info').text('🔬 Exit Try Moves');
             $('#pgn').text('[Analysis] ' + (analysisGame.pgn() || 'Position ready - try any moves for either side'));
@@ -519,6 +606,7 @@ function engineGame(options) {
             isAnalysisMode = false;
             analysisGame = null;
             currentBestMove = null;
+            currentBestMovesMap = {};
             $('#analysis-alert').hide();
             $('#btn-try-moves').removeClass('active btn-warning').addClass('btn-info').text('🔬 Try Moves');
             board.position(game.fen());
@@ -547,6 +635,7 @@ function engineGame(options) {
             if (!isAnalysisMode || !analysisGame) return false;
             analysisGame.undo();
             currentBestMove = null;
+            currentBestMovesMap = {};
             board.position(analysisGame.fen());
             $('#pgn').text('[Analysis] ' + (analysisGame.pgn() || 'Starting analysis position'));
             if (typeof updateVisualizations === 'function') {
@@ -560,6 +649,7 @@ function engineGame(options) {
             analysisGame = new Chess();
             analysisGame.load(game.fen());
             currentBestMove = null;
+            currentBestMovesMap = {};
             board.position(analysisGame.fen());
             $('#pgn').text('[Analysis] ' + (analysisGame.pgn() || 'Position reset to game state'));
             if (typeof updateVisualizations === 'function') {
