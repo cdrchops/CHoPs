@@ -560,6 +560,7 @@ function updateVisualizations(game) {
     var fen = (tempChess && typeof tempChess.fen === 'function') ? tempChess.fen() : (game && typeof game.getFen === 'function' ? game.getFen() : null);
 
     if (toggleStockfishLines && game) {
+        $('#evaluation').show();
         var turnColor = (tempChess && typeof tempChess.turn === 'function') ? tempChess.turn() : null;
         if (!turnColor || shouldHighlightColor(turnColor)) {
             var lines = [];
@@ -601,6 +602,7 @@ function updateVisualizations(game) {
         }
     } else {
         renderStockfishLines([], fen);
+        $('#evaluation').hide();
     }
 }
 

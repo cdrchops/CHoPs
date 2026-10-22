@@ -71,7 +71,7 @@ function createMockJQuery(options = {}) {
         if (selector === '.rule-toggle') {
             return { length: 1 };
         }
-        if (selector.startsWith('#toggle-')) {
+        if (typeof selector === 'string' && selector.startsWith('#toggle-')) {
             const toggleId = selector.substring(1);
             return {
                 length: 1,
@@ -106,7 +106,7 @@ function createMockJQuery(options = {}) {
                 val: () => side
             };
         }
-        if (selector.startsWith('#board .square-')) {
+        if (typeof selector === 'string' && selector.startsWith('#board .square-')) {
             const sqName = selector.replace('#board .square-', '');
             if (!squareClasses[sqName]) squareClasses[sqName] = [];
             const col = sqName.charCodeAt(0) - 97;
@@ -124,7 +124,19 @@ function createMockJQuery(options = {}) {
                 offset: () => ({ top: row * 50, left: col * 50 })
             };
         }
-        return { length: 0, is: () => false, val: () => '', find: () => ({ remove: () => {} }), append: () => {}, empty: () => {} };
+        return {
+            length: 1,
+            is: () => false,
+            val: () => '',
+            find: () => ({ remove: () => {} }),
+            append: () => {},
+            empty: () => {},
+            off: () => ({ on: () => {} }),
+            on: () => {},
+            text: () => {},
+            html: () => {},
+            trigger: () => {}
+        };
     }
 
     jq._getClasses = () => squareClasses;

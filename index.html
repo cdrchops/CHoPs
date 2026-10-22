@@ -58,7 +58,7 @@
 
     <title>CHess OPeningS - CHOPS</title>
 </head>
-<body>
+<body style="margin: 20px;">
 <div class="row">
     <div class="col-sm-7 col-md-6">
         <span class="h3" id="time1">0:50:00</span>
@@ -77,7 +77,7 @@
 <!--        <div id="engineStatus">...</div>-->
 <!--        <h5>CHoPS</h5>-->
 <!--        <div id="chops"></div>-->
-        <button id="toggle-drawer-btn" class="btn btn-secondary mt-2 mb-3">⚙️ Toggle Options</button>
+<!--        <button id="toggle-drawer-btn" class="btn btn-secondary mt-2 mb-3">⚙️ Toggle Options</button>-->
 <!--        <h5>TODO LIST</h5>-->
 <!--        <pre>-->
 <!--            1. make a 2 player game - so remove stockfish integration if game is 'vs'-->
@@ -85,6 +85,55 @@
 <!--            3. endgame generator from the pgn downloaded from https://syzygy-tables.info/endgames and http://wtharvey.com/-->
 <!--            4.-->
 <!--        </pre>-->
+        <div>
+<!--            <h4>Gameplay Visualizations</h4>-->
+<!--            <p class="text-muted small">Toggle board rules on or off:</p>-->
+<!--            <hr>-->
+            <form id="options-form">
+                <div class="form-group mb-3">
+                    <label class="control-label"><strong>Show colors for:</strong></label>
+                    <div class="btn-group btn-group-justified" data-toggle="buttons" id="visualization-side-group" style="width: 100%; display: flex;">
+                        <label class="btn btn-primary active" id="side-both" style="flex: 1;"><input type="radio" name="visualization-side" value="both" checked>Both</label>
+                        <label class="btn btn-primary" id="side-white" style="flex: 1;"><input type="radio" name="visualization-side" value="w">White</label>
+                        <label class="btn btn-primary" id="side-black" style="flex: 1;"><input type="radio" name="visualization-side" value="b">Black</label>
+                    </div>
+                </div>
+                <hr>
+                <div class="custom-control custom-switch mb-3">
+                    <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-protected" data-class="highlight-green">
+                    <label class="custom-control-label" for="toggle-protected">1) Protected pieces are green</label>
+                </div>
+                <div class="custom-control custom-switch mb-3">
+                    <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-attacked" data-class="highlight-red">
+                    <label class="custom-control-label" for="toggle-attacked">2) Attacked pieces are red</label>
+                </div>
+                <div class="custom-control custom-switch mb-3">
+                    <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-pinned" data-class="highlight-orange">
+                    <label class="custom-control-label" for="toggle-pinned">3) Pinned pieces are orange</label>
+                </div>
+                <div class="custom-control custom-switch mb-3">
+                    <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-skewered" data-class="highlight-yellow">
+                    <label class="custom-control-label" for="toggle-skewered">4) Skewered pieces are yellow</label>
+                </div>
+                <div class="custom-control custom-switch mb-3">
+                    <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-chains" data-class="highlight-purple">
+                    <label class="custom-control-label" for="toggle-chains">5) Pawn chains are purple</label>
+                </div>
+                <div class="custom-control custom-switch mb-3">
+                    <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-castling" data-class="highlight-blue">
+                    <label class="custom-control-label" for="toggle-castling">6) Castling availability is blue</label>
+                </div>
+                <div class="custom-control custom-switch mb-3">
+                    <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-tan" data-class="highlight-tan">
+                    <label class="custom-control-label" for="toggle-tan">7) Protected by another piece is tan</label>
+                </div>
+                <div class="custom-control custom-switch mb-3">
+                    <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-stockfish-lines">
+                    <label class="custom-control-label" for="toggle-stockfish-lines">8) Stockfish lines (up to 5 arrows)</label>
+                </div>
+            </form>
+            <hr>
+        </div>
     </div>
     <div class="col-sm-5 col-md-6">
         <h3>Moves:</h3>
@@ -151,7 +200,8 @@
 </div>
 
     <!-- Slide-out Options Drawer -->
-    <div class="drawer-overlay" id="drawer-overlay"></div>
+    <!--<div class="drawer-overlay" id="drawer-overlay"></div>
+
     <div id="options-drawer">
         <h4>Gameplay Visualizations</h4>
         <p class="text-muted small">Toggle board rules on or off:</p>
@@ -195,13 +245,13 @@
                 <label class="custom-control-label" for="toggle-tan">7) Protected by another piece is tan</label>
             </div>
             <div class="custom-control custom-switch mb-3">
-                <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-stockfish-lines" checked>
+                <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-stockfish-lines">
                 <label class="custom-control-label" for="toggle-stockfish-lines">8) Stockfish lines (up to 5 arrows)</label>
             </div>
         </form>
         <hr>
         <button id="close-drawer-btn" class="btn btn-block btn-outline-secondary">Close Options</button>
-    </div>
+    </div>-->
 
     <script src="js/updateVisualizations.js"></script>
     <script type="text/javascript" language="javascript">
