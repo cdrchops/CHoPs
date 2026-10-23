@@ -135,6 +135,8 @@ function createMockJQuery(options = {}) {
             on: () => {},
             text: () => {},
             html: () => {},
+            show: () => {},
+            hide: () => {},
             trigger: () => {}
         };
     }

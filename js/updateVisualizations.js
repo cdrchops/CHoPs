@@ -604,6 +604,13 @@ function updateVisualizations(game) {
         renderStockfishLines([], fen);
         $('#evaluation').hide();
     }
+
+    // 9) Re-apply selected piece & available moves if active
+    if (game && typeof game.getSelectedSquare === 'function' && game.getSelectedSquare()) {
+        if (typeof game.showAvailableMoves === 'function') {
+            game.showAvailableMoves(game.getSelectedSquare());
+        }
+    }
 }
 
 // Export for node testing if module is present

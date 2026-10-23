@@ -43,6 +43,7 @@ function engineGame(options) {
     var time = { wtime: 300000, btime: 300000, winc: 2000, binc: 2000 };
     var playerColor = 'white';
     var clockTimeoutID = null;
+    var animFrameVisId = null;
     var isEngineRunning = false;
     var evaluation_el = document.getElementById("evaluation");
     var announced_game_over;
@@ -50,6 +51,28 @@ function engineGame(options) {
     var currentBestMovesMap = {};
     var isAnalysisMode = false;
     var analysisGame = null;
+    var selectedSquare = null;
+
+    function clearAvailableMoves() {
+        if (typeof $ !== 'undefined') {
+            $('#board .square-55d63').removeClass('highlight-available highlight-selected');
+        }
+    }
+
+    function showAvailableMoves(square) {
+        if (typeof $ === 'undefined' || !square) return;
+        clearAvailableMoves();
+        var activeChess = (isAnalysisMode && analysisGame) ? analysisGame : game;
+        $('#board .square-' + square).addClass('highlight-selected');
+
+        var toggleAvailableMoves = $('#toggle-available-moves').length ? $('#toggle-available-moves').is(':checked') : true;
+        if (toggleAvailableMoves) {
+            var moves = activeChess.moves({ square: square, verbose: true });
+            for (var i = 0; i < moves.length; i++) {
+                $('#board .square-' + moves[i].to).addClass('highlight-available');
+            }
+        }
+    }
 
     // do not pick up pieces if the game is over
     // in normal mode: only pick up pieces for playerColor
@@ -60,6 +83,8 @@ function engineGame(options) {
             var turnColor = analysisGame.turn();
             var pieceColor = piece.charAt(0);
             if (pieceColor !== turnColor) return false;
+            selectedSquare = source;
+            showAvailableMoves(source);
             return true;
         }
 
@@ -68,9 +93,17 @@ function engineGame(options) {
             piece.search(re) !== -1) {
             return false;
         }
+
+        var turnColor = game.turn();
+        var pieceColor = piece.charAt(0);
+        if (pieceColor !== turnColor) return false;
+
+        selectedSquare = source;
+        showAvailableMoves(source);
+        return true;
     };
 
-    setInterval(function ()
+    var gameOverInterval = setInterval(function ()
     {
         if (announced_game_over) {
             return;
@@ -81,6 +114,9 @@ function engineGame(options) {
             alert("Game Over");
         }
     }, 1000);
+    if (gameOverInterval && typeof gameOverInterval.unref === 'function') {
+        gameOverInterval.unref();
+    }
 
     function uciCmd(cmd, which) {
         // console.log("UCI: " + cmd);
@@ -118,14 +154,37 @@ function engineGame(options) {
         $('#engineStatus').html(status);
     }
 
+    function scheduleVisualizations() {
+        if (animFrameVisId !== null) return;
+        var req = (typeof window !== 'undefined' && window.requestAnimationFrame) ?
+            window.requestAnimationFrame :
+            function(cb) { return setTimeout(cb, 60); };
+        animFrameVisId = req(function() {
+            animFrameVisId = null;
+            if (typeof updateVisualizations === 'function') {
+                updateVisualizations(engineGameController);
+            }
+        });
+    }
+
+    function cancelScheduledVisualizations() {
+        if (animFrameVisId !== null) {
+            var cancel = (typeof window !== 'undefined' && window.cancelAnimationFrame) ?
+                window.cancelAnimationFrame :
+                clearTimeout;
+            cancel(animFrameVisId);
+            animFrameVisId = null;
+        }
+    }
+
     function displayClock(color, t) {
         var isRunning = false;
         if(time.startTime > 0 && color === time.clockColor) {
-            t = Math.max(0, t + time.startTime - Date.now());
+            t = Math.max(0, (t || 0) + time.startTime - Date.now());
             isRunning = true;
         }
         var id = color === playerColor ? '#time2' : '#time1';
-        var sec = Math.ceil(t / 1000);
+        var sec = Math.ceil(Math.max(0, t || 0) / 1000);
         var min = Math.floor(sec / 60);
         sec -= min * 60;
         var hours = Math.floor(min / 60);
@@ -144,9 +203,24 @@ function engineGame(options) {
 
     function clockTick() {
         updateClock();
-        var t = (time.clockColor === 'white' ? time.wtime : time.btime) + time.startTime - Date.now();
-        var timeToNextSecond = (t % 1000) + 1;
-        clockTimeoutID = setTimeout(clockTick, timeToNextSecond);
+        if (!time.startTime || (time.clockColor !== 'white' && time.clockColor !== 'black')) {
+            return;
+        }
+        var currentRemaining = time.clockColor === 'white' ? time.wtime : time.btime;
+        if (typeof currentRemaining !== 'number' || isNaN(currentRemaining)) {
+            return;
+        }
+        var t = currentRemaining + time.startTime - Date.now();
+        if (t <= 0) {
+            stopClock();
+            updateClock();
+            return;
+        }
+        var timeToNextSecond = (t % 1000);
+        if (timeToNextSecond <= 0 || isNaN(timeToNextSecond)) {
+            timeToNextSecond = 1000;
+        }
+        clockTimeoutID = setTimeout(clockTick, Math.max(100, Math.min(1000, timeToNextSecond)));
     }
 
     function stopClock() {
@@ -158,19 +232,23 @@ function engineGame(options) {
             var elapsed = Date.now() - time.startTime;
             time.startTime = null;
             if(time.clockColor === 'white') {
-                time.wtime = Math.max(0, time.wtime - elapsed);
-            } else {
-                time.btime = Math.max(0, time.btime - elapsed);
+                time.wtime = Math.max(0, (time.wtime || 0) - elapsed);
+            } else if(time.clockColor === 'black') {
+                time.btime = Math.max(0, (time.btime || 0) - elapsed);
             }
         }
     }
 
     function startClock() {
+        if (clockTimeoutID !== null) {
+            clearTimeout(clockTimeoutID);
+            clockTimeoutID = null;
+        }
         if(game.turn() === 'w') {
-            time.wtime += time.winc;
+            time.wtime = (time.wtime || 0) + (time.winc || 0);
             time.clockColor = 'white';
         } else {
-            time.btime += time.binc;
+            time.btime = (time.btime || 0) + (time.binc || 0);
             time.clockColor = 'black';
         }
         time.startTime = Date.now();
@@ -202,6 +280,7 @@ function engineGame(options) {
 
     function prepareMove() {
         stopClock();
+        cancelScheduledVisualizations();
         $('#pgn').text(game.pgn());
         board.position(game.fen());
         updateClock();
@@ -294,9 +373,7 @@ function engineGame(options) {
             if (multipvNum === 1) {
                 currentBestMove = moveData;
             }
-            if (typeof updateVisualizations === 'function') {
-                updateVisualizations(engineGameController);
-            }
+            scheduleVisualizations();
         }
         var bestMatch = line.match(/^bestmove\s+([a-h][1-8])([a-h][1-8])([qrbn])?/);
         if (bestMatch && bestMatch[1] !== '(none)') {
@@ -306,16 +383,16 @@ function engineGame(options) {
             bestMoveData.promotion = bestMatch[3];
             currentBestMove = bestMoveData;
             currentBestMovesMap[1] = bestMoveData;
-            if (typeof updateVisualizations === 'function') {
-                updateVisualizations(engineGameController);
-            }
+            scheduleVisualizations();
         }
 
         if (evaluation_el) {
-            if (evaluation_el.textContent) {
-                evaluation_el.textContent += "\n";
+            var evalLines = (evaluation_el.textContent ? evaluation_el.textContent.split("\n") : []);
+            evalLines.push(line);
+            if (evalLines.length > 25) {
+                evalLines = evalLines.slice(-25);
             }
-            evaluation_el.textContent += line;
+            evaluation_el.textContent = evalLines.join("\n");
         }
     };
 
@@ -380,6 +457,13 @@ function engineGame(options) {
         var promoteEl = document.getElementById("promote");
         var promoVal = promoteEl ? promoteEl.value : 'q';
 
+        if (source === target) {
+            return 'snapback';
+        }
+
+        clearAvailableMoves();
+        selectedSquare = null;
+
         if (isAnalysisMode && analysisGame) {
             var move = null;
             try {
@@ -423,9 +507,103 @@ function engineGame(options) {
         prepareMove();
     };
 
+    function handleSquareClick(square) {
+        if (!square) return;
+        var activeChess = (isAnalysisMode && analysisGame) ? analysisGame : game;
+        if (activeChess.isGameOver()) return;
+
+        var turnColor = activeChess.turn();
+        if (!isAnalysisMode) {
+            var allowedTurn = playerColor === 'white' ? 'w' : 'b';
+            if (turnColor !== allowedTurn || isEngineRunning) return;
+        }
+
+        var pieceOnSquare = activeChess.get(square);
+
+        if (!selectedSquare) {
+            if (pieceOnSquare && pieceOnSquare.color === turnColor) {
+                selectedSquare = square;
+                showAvailableMoves(square);
+            }
+        } else {
+            if (selectedSquare === square) {
+                selectedSquare = null;
+                clearAvailableMoves();
+            } else if (pieceOnSquare && pieceOnSquare.color === turnColor) {
+                selectedSquare = square;
+                showAvailableMoves(square);
+            } else {
+                var promoteEl = document.getElementById("promote");
+                var promoVal = promoteEl ? promoteEl.value : 'q';
+                var fromSq = selectedSquare;
+                var move = null;
+                try {
+                    move = activeChess.move({
+                        from: fromSq,
+                        to: square,
+                        promotion: promoVal
+                    });
+                } catch (e) {
+                    move = null;
+                }
+
+                if (move !== null) {
+                    selectedSquare = null;
+                    clearAvailableMoves();
+                    if (isAnalysisMode && analysisGame) {
+                        currentBestMove = null;
+                        currentBestMovesMap = {};
+                        board.position(analysisGame.fen());
+                        $('#pgn').text('[Analysis] ' + analysisGame.pgn());
+                        if (typeof updateVisualizations === 'function') {
+                            updateVisualizations(engineGameController);
+                        }
+                        requestAnalysis(analysisGame.fen());
+                    } else {
+                        prepareMove();
+                    }
+                } else {
+                    selectedSquare = null;
+                    clearAvailableMoves();
+                }
+            }
+        }
+    }
+
     if (typeof $ !== 'undefined') {
+        $('#board').off('click.enginegame').on('click.enginegame', '.square-55d63', function(e) {
+            var sq = $(this).attr('data-square');
+            if (sq) {
+                handleSquareClick(sq);
+            }
+        });
+
+        $(document).off('click.board-deselect').on('click.board-deselect', function(e) {
+            if (!$(e.target).closest('#board').length && !$(e.target).closest('#toggle-available-moves').length && !$(e.target).closest('label[for="toggle-available-moves"]').length) {
+                if (selectedSquare) {
+                    selectedSquare = null;
+                    clearAvailableMoves();
+                }
+            }
+        });
+
+        $('#toggle-available-moves').off('change.availmoves').on('change.availmoves', function() {
+            if (selectedSquare) {
+                if ($(this).is(':checked')) {
+                    showAvailableMoves(selectedSquare);
+                } else {
+                    clearAvailableMoves();
+                    $('#board .square-' + selectedSquare).addClass('highlight-selected');
+                }
+            }
+        });
+
         $(document).off('keydown.enginegame').on('keydown.enginegame', function(e) {
             if (e.key === 'Escape' || e.keyCode === 27) {
+                if (selectedSquare) {
+                    selectedSquare = null;
+                    clearAvailableMoves();
+                }
                 $(window).trigger($.Event('mouseup', { pageX: -1000, pageY: -1000 }));
             }
         });
@@ -441,6 +619,9 @@ function engineGame(options) {
         }
         if (typeof updateVisualizations === 'function') {
             updateVisualizations(engineGameController);
+        }
+        if (selectedSquare) {
+            showAvailableMoves(selectedSquare);
         }
     };
 
@@ -458,6 +639,8 @@ function engineGame(options) {
     var engineGameController = {
         reset: function() {
             if (isAnalysisMode) this.exitAnalysis();
+            selectedSquare = null;
+            clearAvailableMoves();
             game.reset();
             uciCmd('setoption name Contempt value 0');
             //uciCmd('setoption name Skill Level value 20');
@@ -466,10 +649,14 @@ function engineGame(options) {
         },
         loadPgn: function(pgn) {
             if (isAnalysisMode) this.exitAnalysis();
+            selectedSquare = null;
+            clearAvailableMoves();
             game.loadPgn(pgn);
         },
         setPlayerColor: function(color) {
             playerColor = color;
+            selectedSquare = null;
+            clearAvailableMoves();
             board.orientation(playerColor);
         },
         setSkillLevel: function(skill) {
@@ -510,13 +697,16 @@ function engineGame(options) {
             uciCmd('setoption name Skill Level Probability value ' + err_prob);
         },
         setTime: function(baseTime, inc) {
-            time = { wtime: baseTime * 1000, btime: baseTime * 1000, winc: inc * 1000, binc: inc * 1000 };
+            time.wtime = (baseTime || 0) * 1000;
+            time.btime = (baseTime || 0) * 1000;
+            time.winc = (inc || 0) * 1000;
+            time.binc = (inc || 0) * 1000;
         },
         setDepth: function(depth) {
-            time = { depth: depth };
+            time.depth = depth;
         },
         setNodes: function(nodes) {
-            time = { nodes: nodes };
+            time.nodes = nodes;
         },
         setContempt: function(contempt) {
             uciCmd('setoption name Contempt value ' + contempt);
@@ -688,6 +878,43 @@ function engineGame(options) {
         },
         requestAnalysis: function(fen) {
             requestAnalysis(fen);
+        },
+        getSelectedSquare: function() {
+            return selectedSquare;
+        },
+        clearSelection: function() {
+            selectedSquare = null;
+            clearAvailableMoves();
+        },
+        showAvailableMoves: function(sq) {
+            showAvailableMoves(sq);
+        },
+        resize: function() {
+            if (board && typeof board.resize === 'function') {
+                board.resize();
+            }
+        },
+        destroy: function() {
+            stopClock();
+            if (gameOverInterval) {
+                clearInterval(gameOverInterval);
+                gameOverInterval = null;
+            }
+            cancelScheduledVisualizations();
+            try {
+                uciCmd('stop');
+                uciCmd('stop', evaler);
+                uciCmd('quit');
+                uciCmd('quit', evaler);
+                if (engine && typeof engine.terminate === 'function') {
+                    engine.terminate();
+                }
+                if (evaler && typeof evaler.terminate === 'function') {
+                    evaler.terminate();
+                }
+            } catch (e) {
+                console.warn('Error during engineGame destroy:', e);
+            }
         }
     };
 

@@ -1,9 +1,79 @@
 <!doctype html>
 <html>
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/chessboard-0.3.0.min.css" />
     <style>
+        /* Responsive layout */
+        body {
+            margin: 15px;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .container-fluid {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+        .board-container {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        #board {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+            touch-action: manipulation;
+        }
+        .chessboard-63f37 {
+            width: 100% !important;
+        }
+        .game-controls-container {
+            margin-top: 10px;
+        }
+        #pgn {
+            max-height: 120px;
+            overflow-y: auto;
+            word-break: break-word;
+            padding: 8px;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+        }
+        #evaluation {
+            max-height: 140px;
+            overflow-y: auto;
+            overflow-x: auto;
+            font-size: 11px;
+        }
+        .btn-action-group .btn {
+            margin-bottom: 5px;
+            margin-right: 2px;
+        }
+        @media (max-width: 767px) {
+            body {
+                margin: 8px;
+            }
+            .h3, h3 {
+                font-size: 18px;
+                margin-top: 5px;
+                margin-bottom: 5px;
+            }
+            #time1, #time2 {
+                display: inline-block;
+                margin-bottom: 5px;
+            }
+            .form-horizontal .control-label {
+                text-align: left;
+                padding-bottom: 2px;
+            }
+            .form-group {
+                margin-bottom: 8px;
+            }
+        }
+
         /* Custom highlights styling for chessboard-js squares */
         .highlight-green { box-shadow: inset 0 0 3px 3px rgba(40, 167, 69, 0.8) !important; background-color: rgba(40, 167, 69, 0.2) !important; }
         .highlight-red { box-shadow: inset 0 0 3px 3px rgba(220, 53, 69, 0.8) !important; background-color: rgba(220, 53, 69, 0.2) !important; }
@@ -12,6 +82,16 @@
         .highlight-purple { box-shadow: inset 0 0 3px 3px rgba(111, 66, 193, 0.8) !important; background-color: rgba(111, 66, 193, 0.2) !important; }
         .highlight-blue { box-shadow: inset 0 0 3px 3px rgba(0, 123, 255, 0.8) !important; background-color: rgba(0, 123, 255, 0.2) !important; }
         .highlight-tan { box-shadow: inset 0 0 3px 3px rgba(210, 180, 140, 0.8) !important; background-color: rgba(210, 180, 140, 0.2) !important; }
+
+        /* Available moves and piece selection highlights */
+        .highlight-available {
+            box-shadow: inset 0 0 3px 3px rgba(255, 235, 59, 0.8) !important;
+            background-color: rgba(255, 235, 59, 0.5) !important;
+        }
+        .highlight-selected {
+            box-shadow: inset 0 0 4px 4px rgba(255, 193, 7, 0.9) !important;
+            background-color: rgba(255, 193, 7, 0.35) !important;
+        }
 
         .square-multi-highlight {
             position: relative;
@@ -58,11 +138,14 @@
 
     <title>CHess OPeningS - CHOPS</title>
 </head>
-<body style="margin: 20px;">
+<body>
+<div class="container-fluid">
 <div class="row">
     <div class="col-sm-7 col-md-6">
         <span class="h3" id="time1">0:50:00</span>
-        <div id="board" style="width: 400px"></div>
+        <div class="board-container">
+            <div id="board" style="width: 100%; max-width: 400px"></div>
+        </div>
         <div id="analysis-alert" class="alert alert-info" style="display: none; margin-top: 10px; margin-bottom: 10px;">
             <div><strong>🔬 Analysis Mode:</strong> Try any moves without affecting the real game.</div>
             <div class="btn-group btn-group-sm" style="margin-top: 6px;">
@@ -90,6 +173,34 @@
 <!--            <p class="text-muted small">Toggle board rules on or off:</p>-->
 <!--            <hr>-->
             <a href="https://github.com/cdrchops/CHoPs/blob/main/README.md" target="_blank">CHoPs Play Instructions</a><br/>
+            <form class="form-horizontal">
+                <div class="form-group">
+                    <div class="col-xs-12 btn-action-group">
+                        <button type="button" class="btn btn-primary" onclick="loadNewGame('')" id="newGameButton">New Game</button>
+                        <button type="button" class="btn btn-primary" onclick="loadRandomOpening()">Random Opening</button>
+                        <button type="button" class="btn btn-info" id="btn-try-moves" onclick="toggleAnalysisMode()">🔬 Try Moves</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="col-xs-6 col-sm-6">
+                        <label class="control-label" style="text-align: left; display: block; margin-bottom: 5px;">I play</label>
+                        <div class="btn-group" data-toggle="buttons" style="width: 100%; display: flex;">
+                            <label class="btn btn-primary active" id="color-white" style="flex: 1;"><input type="radio" name="color">White</label>
+                            <label class="btn btn-primary" id="color-black" style="flex: 1;"><input type="radio" name="color">Black</label>
+                        </div>
+                    </div>
+                    <div class="col-xs-6 col-sm-6">
+                        <label for="promote" class="control-label" style="text-align: left; display: block; margin-bottom: 5px;">Promote to</label>
+                        <select id="promote" class="form-control">
+                            <option value="q" selected>Queen</option>
+                            <option value="r">Rook</option>
+                            <option value="b">Bishop</option>
+                            <option value="n">Knight</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
             <form id="options-form">
                 <div class="form-group mb-3">
                     <label class="control-label"><strong>Show colors for:</strong></label>
@@ -129,75 +240,51 @@
                     <label class="custom-control-label" for="toggle-tan">7) Protected by another piece is tan</label>
                 </div>
                 <div class="custom-control custom-switch mb-3">
+                    <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-available-moves" data-class="highlight-available">
+                    <label class="custom-control-label" for="toggle-available-moves">8) Show available moves on selection</label>
+                </div>
+                <div class="custom-control custom-switch mb-3">
                     <input type="checkbox" class="custom-control-input rule-toggle" id="toggle-stockfish-lines">
-                    <label class="custom-control-label" for="toggle-stockfish-lines">8) Stockfish lines (up to 5 arrows)</label>
+                    <label class="custom-control-label" for="toggle-stockfish-lines">9) Stockfish lines (up to 5 arrows)</label>
                 </div>
             </form>
             <hr>
         </div>
     </div>
-    <div class="col-sm-5 col-md-6">
+    <div class="col-sm-5 col-md-6 game-controls-container">
         <h3>Moves:</h3>
         <div id="pgn"></div>
         <hr>
         <form class="form-horizontal">
             <div class="form-group">
-                <label for="timeBase" class="control-label col-xs-4 col-sm-6 col-md-4">Base time (min)</label>
-                <div class="col-xs-4 col-sm-6 col-md-4">
+                <label for="timeBase" class="control-label col-xs-6 col-sm-6 col-md-4">Base time (min)</label>
+                <div class="col-xs-6 col-sm-6 col-md-4">
                     <input type="number" class="form-control" id="timeBase" value="50">
                 </div>
             </div>
             <div class="form-group">
-                <label for="timeInc" class="control-label col-xs-4 col-sm-6 col-md-4">Increment (sec)</label>
-                <div class="col-xs-4 col-sm-6 col-md-4">
+                <label for="timeInc" class="control-label col-xs-6 col-sm-6 col-md-4">Increment (sec)</label>
+                <div class="col-xs-6 col-sm-6 col-md-4">
                     <input type="number" class="form-control" id="timeInc" value="2">
                 </div>
             </div>
             <div class="form-group">
-                <label for="skillLevel" class="control-label col-xs-4 col-sm-6 col-md-4">Skill Level (0-20)</label>
-                <div class="col-xs-4 col-sm-6 col-md-4">
+                <label for="skillLevel" class="control-label col-xs-6 col-sm-6 col-md-4">Skill Level (0-20)</label>
+                <div class="col-xs-6 col-sm-6 col-md-4">
                     <input type="number" class="form-control" id="skillLevel" value="0">
                 </div>
             </div>
             <div class="form-group">
-                <label for="color" class="control-label col-xs-4 col-sm-6 col-md-4">I play</label>
-                <div class="col-xs-4 col-sm-6 col-md-4">
-                    <div class="btn-group" data-toggle="buttons">
-                        <label class="btn btn-primary active" id="color-white"><input type="radio" name="color">White</label>
-                        <label class="btn btn-primary" id="color-black"><input type="radio" name="color">Black</label>
-                    </div>
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="showScore" class="control-label col-xs-4 col-sm-6 col-md-4">Show score</label>
-                <div class="col-xs-4 col-sm-6 col-md-4">
+                <label for="showScore" class="control-label col-xs-6 col-sm-6 col-md-4">Show score</label>
+                <div class="col-xs-6 col-sm-6 col-md-4">
                     <input type="checkbox" class="form-control" id="showScore" checked>
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="color" class="control-label col-xs-4 col-sm-6 col-md-4"></label>
-                <div class="col-xs-8 col-sm-6 col-md-8">
-                    <button type="button" class="btn btn-primary" onclick="loadNewGame('')" id="newGameButton">New Game</button>
-                    <button type="button" class="btn btn-primary" onclick="loadRandomOpening()">Random Opening</button>
-                    <button type="button" class="btn btn-info" id="btn-try-moves" onclick="toggleAnalysisMode()">🔬 Try Moves</button>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label for="color" class="control-label col-xs-4 col-sm-6 col-md-4">Promote to</label>
-                <div class="col-xs-4 col-sm-6 col-md-4">
-                    <select id=promote>
-                        <option value=q selected>Queen</option>
-                        <option value=r>Rook</option>
-                        <option value=b>Bishop</option>
-                        <option value=n>Knight</option>
-                    </select>
                 </div>
             </div>
         </form>
         <h5>Evaluation</h5>
         <pre id=evaluation></pre>
     </div>
+</div>
 </div>
 
     <!-- Slide-out Options Drawer -->
@@ -332,11 +419,14 @@
             fen = randomOpening.moves;
             loadPGN(fen);
 
-            console.log("fen is " + fen);
+            // console.log("fen is " + fen);
         }
 
         function loadNewGame(pgn) {
-            console.log("pgn is from fen which is " + pgn);
+            if (activeGameInstance && typeof activeGameInstance.destroy === 'function') {
+                activeGameInstance.destroy();
+            }
+            // console.log("pgn is from fen which is " + pgn);
             var options = {};
             if (pgn !== '' && pgn !== undefined) {
                 options = {pgn:pgn};
@@ -347,7 +437,7 @@
             newGame = function newGame() {
                 var baseTime = parseFloat($('#timeBase').val()) * 60;
                 var inc = parseFloat($('#timeInc').val());
-                var skill = parseInt($('#skillLevel').val());
+                var skill = parseInt($('#skillLevel').val(), 10);
                 game.setTime(baseTime, inc);
                 game.setSkillLevel(skill);
                 game.setPlayerColor($('#color-white').hasClass('active') ? 'white' : 'black');
@@ -355,10 +445,6 @@
                 game.start();
                 updateVisualizations(game);
             };
-
-            document.getElementById("skillLevel").addEventListener("change", function() {
-                game.setSkillLevel(parseInt(this.value, 10));
-            });
 
             newGame();
         }
@@ -374,6 +460,26 @@
                 $('#drawer-overlay').toggleClass('open');
             });
 
+            $('#skillLevel').on('change', function() {
+                if (activeGameInstance && typeof activeGameInstance.setSkillLevel === 'function') {
+                    activeGameInstance.setSkillLevel(parseInt(this.value, 10));
+                }
+            });
+
+            $('#timeBase, #timeInc').on('change', function() {
+                if (activeGameInstance && typeof activeGameInstance.setTime === 'function') {
+                    var baseTime = parseFloat($('#timeBase').val()) * 60;
+                    var inc = parseFloat($('#timeInc').val());
+                    activeGameInstance.setTime(baseTime, inc);
+                }
+            });
+
+            $('#showScore').on('change', function() {
+                if (activeGameInstance && typeof activeGameInstance.setDisplayScore === 'function') {
+                    activeGameInstance.setDisplayScore($(this).is(':checked'));
+                }
+            });
+
             $('.rule-toggle, input[name="visualization-side"]').change(function() {
                 updateVisualizations(activeGameInstance);
             });
@@ -382,6 +488,15 @@
                 setTimeout(function() {
                     updateVisualizations(activeGameInstance);
                 }, 0);
+            });
+
+            $(window).on('resize', function() {
+                if (activeGameInstance && typeof activeGameInstance.resize === 'function') {
+                    activeGameInstance.resize();
+                    if (typeof updateVisualizations === 'function') {
+                        updateVisualizations(activeGameInstance);
+                    }
+                }
             });
 
             // Initialize board as a new game on page load
