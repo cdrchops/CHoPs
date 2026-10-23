@@ -14,19 +14,19 @@ function engineGame(options) {
     var board;
     /// We can load Stockfish via Web Workers or via STOCKFISH() if loaded from a <script> tag.
     function createEngineWorker(scriptPath) {
-        if (typeof STOCKFISH === "function") {
-            try {
-                return STOCKFISH();
-            } catch (e) {
-                console.warn("STOCKFISH() initialization failed:", e);
-            }
-        }
         var path = scriptPath || 'js/stockfish.js';
         if (typeof Worker !== "undefined" && (typeof location === "undefined" || location.protocol !== "file:")) {
             try {
                 return new Worker(path);
             } catch (e) {
                 console.warn("Worker creation failed for " + path + ":", e);
+            }
+        }
+        if (typeof STOCKFISH === "function") {
+            try {
+                return STOCKFISH();
+            } catch (e) {
+                console.warn("STOCKFISH() initialization failed:", e);
             }
         }
         return {
@@ -103,19 +103,17 @@ function engineGame(options) {
         return true;
     };
 
-    var gameOverInterval = setInterval(function ()
-    {
+    function checkGameOver() {
         if (announced_game_over) {
             return;
         }
-
         if (game.isGameOver()) {
             announced_game_over = true;
-            alert("Game Over");
+            stopClock();
+            setTimeout(function () {
+                alert("Game Over");
+            }, 50);
         }
-    }, 1000);
-    if (gameOverInterval && typeof gameOverInterval.unref === 'function') {
-        gameOverInterval.unref();
     }
 
     function uciCmd(cmd, which) {
@@ -309,6 +307,8 @@ function engineGame(options) {
             if(game.history().length >= 2 && !time.depth && !time.nodes) {
                 startClock();
             }
+        } else {
+            checkGameOver();
         }
     }
 
@@ -527,10 +527,15 @@ function engineGame(options) {
             }
         } else {
             if (selectedSquare === square) {
+                // Tapped the same square again -> deselect and keep/restore piece on square
                 selectedSquare = null;
                 clearAvailableMoves();
+                board.position(activeChess.fen(), false);
             } else if (pieceOnSquare && pieceOnSquare.color === turnColor) {
+                // Tapped another of their own pieces -> deselect previous piece and select the tapped piece
                 selectedSquare = square;
+                clearAvailableMoves();
+                board.position(activeChess.fen(), false);
                 showAvailableMoves(square);
             } else {
                 var promoteEl = document.getElementById("promote");
@@ -563,10 +568,91 @@ function engineGame(options) {
                         prepareMove();
                     }
                 } else {
+                    // Invalid square / move -> deselect and restore piece to square it was just on
                     selectedSquare = null;
                     clearAvailableMoves();
+                    board.position(activeChess.fen(), false);
                 }
             }
+        }
+    }
+
+    var touchStartX = 0;
+    var touchStartY = 0;
+    var touchMoved = false;
+
+    function onTouchStartBoard(e) {
+        var touch = e.touches ? e.touches[0] : null;
+        if (touch) {
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            touchMoved = false;
+        }
+    }
+
+    function onTouchMoveBoard(e) {
+        var touch = e.touches ? e.touches[0] : null;
+        if (touch) {
+            var deltaX = Math.abs(touch.clientX - touchStartX);
+            var deltaY = Math.abs(touch.clientY - touchStartY);
+            if (deltaX > 10 || deltaY > 10) {
+                touchMoved = true;
+            }
+        }
+    }
+
+    function onTouchEndBoard(e) {
+        if (!touchMoved) {
+            var target = e.target;
+            var squareEl = (target && target.closest) ? target.closest('.square-55d63') : (typeof $ !== 'undefined' ? $(target).closest('.square-55d63')[0] : null);
+            if (squareEl) {
+                var sq = squareEl.getAttribute('data-square');
+                if (sq) {
+                    handleSquareClick(sq);
+                }
+            }
+        }
+    }
+
+    function onDocTouchEnd(e) {
+        var target = e.target;
+        var inBoard = (target && target.closest) ? target.closest('#board') : (typeof $ !== 'undefined' && $(target).closest('#board').length);
+        var inToggle = (target && target.closest) ? (target.closest('#toggle-available-moves') || target.closest('label[for="toggle-available-moves"]')) : (typeof $ !== 'undefined' && ($(target).closest('#toggle-available-moves').length || $(target).closest('label[for="toggle-available-moves"]').length));
+        if (!inBoard && !inToggle) {
+            if (selectedSquare) {
+                var activeChess = (isAnalysisMode && analysisGame) ? analysisGame : game;
+                selectedSquare = null;
+                clearAvailableMoves();
+                if (board && activeChess) {
+                    board.position(activeChess.fen(), false);
+                }
+            }
+        }
+    }
+
+    var boardEl = (typeof document !== 'undefined') ? document.getElementById('board') : null;
+    if (boardEl) {
+        boardEl.addEventListener('touchstart', onTouchStartBoard, { passive: true });
+        boardEl.addEventListener('touchmove', onTouchMoveBoard, { passive: true });
+        boardEl.addEventListener('touchend', onTouchEndBoard, { passive: true });
+    }
+    if (typeof document !== 'undefined') {
+        document.addEventListener('touchend', onDocTouchEnd, { passive: true });
+    }
+
+    function cleanupEvents() {
+        if (boardEl) {
+            boardEl.removeEventListener('touchstart', onTouchStartBoard, { passive: true });
+            boardEl.removeEventListener('touchmove', onTouchMoveBoard, { passive: true });
+            boardEl.removeEventListener('touchend', onTouchEndBoard, { passive: true });
+        }
+        if (typeof document !== 'undefined') {
+            document.removeEventListener('touchend', onDocTouchEnd, { passive: true });
+        }
+        if (typeof $ !== 'undefined') {
+            $('#board').off('click.enginegame');
+            $(document).off('click.board-deselect keydown.enginegame');
+            $('#toggle-available-moves').off('change.availmoves');
         }
     }
 
@@ -581,8 +667,12 @@ function engineGame(options) {
         $(document).off('click.board-deselect').on('click.board-deselect', function(e) {
             if (!$(e.target).closest('#board').length && !$(e.target).closest('#toggle-available-moves').length && !$(e.target).closest('label[for="toggle-available-moves"]').length) {
                 if (selectedSquare) {
+                    var activeChess = (isAnalysisMode && analysisGame) ? analysisGame : game;
                     selectedSquare = null;
                     clearAvailableMoves();
+                    if (board && activeChess) {
+                        board.position(activeChess.fen(), false);
+                    }
                 }
             }
         });
@@ -601,10 +691,15 @@ function engineGame(options) {
         $(document).off('keydown.enginegame').on('keydown.enginegame', function(e) {
             if (e.key === 'Escape' || e.keyCode === 27) {
                 if (selectedSquare) {
+                    var activeChess = (isAnalysisMode && analysisGame) ? analysisGame : game;
                     selectedSquare = null;
                     clearAvailableMoves();
+                    if (board && activeChess) {
+                        board.position(activeChess.fen(), false);
+                    }
                 }
                 $(window).trigger($.Event('mouseup', { pageX: -1000, pageY: -1000 }));
+                $(window).trigger($.Event('touchend', { originalEvent: { changedTouches: [{ pageX: -1000, pageY: -1000 }] } }));
             }
         });
     }
@@ -896,11 +991,8 @@ function engineGame(options) {
         },
         destroy: function() {
             stopClock();
-            if (gameOverInterval) {
-                clearInterval(gameOverInterval);
-                gameOverInterval = null;
-            }
             cancelScheduledVisualizations();
+            cleanupEvents();
             try {
                 uciCmd('stop');
                 uciCmd('stop', evaler);
