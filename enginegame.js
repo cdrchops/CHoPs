@@ -580,6 +580,7 @@ function engineGame(options) {
     var touchStartX = 0;
     var touchStartY = 0;
     var touchMoved = false;
+    var lastTouchTime = 0;
 
     function onTouchStartBoard(e) {
         var touch = e.touches ? e.touches[0] : null;
@@ -603,6 +604,7 @@ function engineGame(options) {
 
     function onTouchEndBoard(e) {
         if (!touchMoved) {
+            lastTouchTime = Date.now();
             var target = e.target;
             var squareEl = (target && target.closest) ? target.closest('.square-55d63') : (typeof $ !== 'undefined' ? $(target).closest('.square-55d63')[0] : null);
             if (squareEl) {
@@ -615,6 +617,7 @@ function engineGame(options) {
     }
 
     function onDocTouchEnd(e) {
+        lastTouchTime = Date.now();
         var target = e.target;
         var inBoard = (target && target.closest) ? target.closest('#board') : (typeof $ !== 'undefined' && $(target).closest('#board').length);
         var inToggle = (target && target.closest) ? (target.closest('#toggle-available-moves') || target.closest('label[for="toggle-available-moves"]')) : (typeof $ !== 'undefined' && ($(target).closest('#toggle-available-moves').length || $(target).closest('label[for="toggle-available-moves"]').length));
@@ -630,14 +633,24 @@ function engineGame(options) {
         }
     }
 
+    function preventContextMenu(e) {
+        var target = e.target;
+        if (target && target.closest && (target.closest('#board') || target.closest('.square-55d63') || target.closest('.piece-417db'))) {
+            e.preventDefault();
+            return false;
+        }
+    }
+
     var boardEl = (typeof document !== 'undefined') ? document.getElementById('board') : null;
     if (boardEl) {
         boardEl.addEventListener('touchstart', onTouchStartBoard, { passive: true });
         boardEl.addEventListener('touchmove', onTouchMoveBoard, { passive: true });
         boardEl.addEventListener('touchend', onTouchEndBoard, { passive: true });
+        boardEl.addEventListener('contextmenu', preventContextMenu);
     }
     if (typeof document !== 'undefined') {
         document.addEventListener('touchend', onDocTouchEnd, { passive: true });
+        document.addEventListener('contextmenu', preventContextMenu);
     }
 
     function cleanupEvents() {
@@ -645,12 +658,14 @@ function engineGame(options) {
             boardEl.removeEventListener('touchstart', onTouchStartBoard, { passive: true });
             boardEl.removeEventListener('touchmove', onTouchMoveBoard, { passive: true });
             boardEl.removeEventListener('touchend', onTouchEndBoard, { passive: true });
+            boardEl.removeEventListener('contextmenu', preventContextMenu);
         }
         if (typeof document !== 'undefined') {
             document.removeEventListener('touchend', onDocTouchEnd, { passive: true });
+            document.removeEventListener('contextmenu', preventContextMenu);
         }
         if (typeof $ !== 'undefined') {
-            $('#board').off('click.enginegame');
+            $('#board').off('click.enginegame contextmenu.enginegame');
             $(document).off('click.board-deselect keydown.enginegame');
             $('#toggle-available-moves').off('change.availmoves');
         }
@@ -658,6 +673,9 @@ function engineGame(options) {
 
     if (typeof $ !== 'undefined') {
         $('#board').off('click.enginegame').on('click.enginegame', '.square-55d63', function(e) {
+            if (Date.now() - lastTouchTime < 500) {
+                return;
+            }
             var sq = $(this).attr('data-square');
             if (sq) {
                 handleSquareClick(sq);
@@ -665,6 +683,9 @@ function engineGame(options) {
         });
 
         $(document).off('click.board-deselect').on('click.board-deselect', function(e) {
+            if (Date.now() - lastTouchTime < 500) {
+                return;
+            }
             if (!$(e.target).closest('#board').length && !$(e.target).closest('#toggle-available-moves').length && !$(e.target).closest('label[for="toggle-available-moves"]').length) {
                 if (selectedSquare) {
                     var activeChess = (isAnalysisMode && analysisGame) ? analysisGame : game;
